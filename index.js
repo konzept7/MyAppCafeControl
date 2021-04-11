@@ -13,6 +13,7 @@ import {
 import {
   constants
 } from 'fs';
+import * as fs from 'fs/promises';
 
 const region = process.env.REGION  || 'de';
 
@@ -41,19 +42,19 @@ const privateKeyPath = certDir + 'me.private.key';
 const certPath = certDir + 'me.cert.pem';
 (async () => {
   try {
-    await access(rootCertPath, constants.R_OK);
+    await fs.access(rootCertPath, constants.R_OK);
   } catch (error) {
     console.error('could not find root certificate, please provide it under: ' + rootCertPath, error)
     process.exit(-1)
   }
   try {
-    await access(privateKeyPath, constants.R_OK);
+    await fs.access(privateKeyPath, constants.R_OK);
   } catch (error) {
     console.error('could not find private key, please provide it under: ' + privateKeyPath, error)
     process.exit(-1)
   }
   try {
-    await access(certPath, constants.R_OK);
+    await fs.access(certPath, constants.R_OK);
   } catch (error) {
     console.error('could not find thing certificate, please provide it under: ' + certPath, error)
     process.exit(-1)
