@@ -11,9 +11,9 @@ import {
   access
 } from 'fs/promises';
 import {
-  constants
+  constants,
+  promises
 } from 'fs';
-import * as fs from 'fs/promises';
 
 const region = process.env.REGION  || 'de';
 
@@ -124,3 +124,12 @@ const connection = client.new_connection(config);
   await connection.disconnect()
   clearTimeout(timer);
 })()
+
+//init Express
+var app = express();
+app.use(express.json());
+app.use(cors());
+// start the server
+app.listen(port, function () {
+    console.log('node.js static server listening on port: ' + port + ", with websockets listener")
+})
