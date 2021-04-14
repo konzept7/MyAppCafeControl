@@ -1,0 +1,5 @@
+{
+  "operation": "update",
+  "images": ["redis", "config-provider", "status-frontend", "display-queue", "order-terminal", "myappcafeserver"],
+  "isForced": false
+}

@@ -4,18 +4,20 @@
   "description": "",
   "main": "./index.js",
   "scripts": {
-    "test": "nodemon -r esm index.js"
+    "test": "nodemon index.ts"
   },
   "author": "Frank Bielecke, (C) IBS Dr. Klaus Schnürer GmbH 2021",
   "license": "ISC",
   "dependencies": {
+    "@microsoft/signalr": "^5.0.5",
     "aws-crt": "^1.6.2",
     "aws-iot-device-sdk-v2": "^1.4.3",
+    "axios": "^0.21.1",
     "cors": "^2.8.5",
     "esm": "^3.2.25",
+    "events": "^3.3.0",
     "express": "^4.17.1",
     "fs": "0.0.1-security",
-    "signalr": "^2.4.1",
     "ws": "^7.4.4",
     "yargs": "^16.2.0"
   },
