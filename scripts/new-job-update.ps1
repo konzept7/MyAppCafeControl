@@ -1,0 +1,1 @@
+aws iot create-job --job-id $((New-Guid).toString()) --targets arn:aws:iot:eu-central-1:311842024294:thing/TutorialThing --document-source https://s3.amazonaws.com/iot.myapp.cafe/jobs/update.json --timeout-config inProgressTimeoutInMinutes=100

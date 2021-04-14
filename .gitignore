@@ -1,8 +1,6 @@
 node_modules
 dist
-TutorialThing.cert.pem
-TutorialThing.private.key
-TutorialThing.public.key
-root-CA.crt
-me.cert.pem
-me.private.key
+*.cert.pem
+*.private.key
+*.public.key
+*.crt
