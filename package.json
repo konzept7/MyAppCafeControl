@@ -12,6 +12,7 @@
     "@microsoft/signalr": "^5.0.5",
     "aws-crt": "^1.6.2",
     "aws-iot-device-sdk-v2": "^1.4.3",
+    "aws-sdk": "^2.889.0",
     "axios": "^0.21.1",
     "cors": "^2.8.5",
     "esm": "^3.2.25",
