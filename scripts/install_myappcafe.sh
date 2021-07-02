@@ -58,39 +58,39 @@ awssecret=$9
 awsregion=$10
 
 # check incoming arguments
-if [[ "$hostname" == "" ]];
+if [[ "$hostname" == "" ]]; then
     echo "  <Hostname> needs to be set!"
     exit 0
 fi
-if [[ "$password" == "" ]];
+if [[ "$password" == "" ]]; then
     echo "  <Password> needs to be set!"
     exit 0
 fi
 
-if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "display" ]];
-    if [[ "$resolution" == "" ]]; 
+if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "display" ]]; then
+    if [[ "$resolution" == "" ]]; then
         echo "  <Resolution> needs to be set, when installing server or display-devices!"
     fi
-    if [[ "$serverip" == "" ]]; 
+    if [[ "$serverip" == "" ]]; then
         echo "  <ServerIP> needs to be set, when installing server or display-devices!"
     fi
-    if [[ "$serverport" == "" ]]; 
+    if [[ "$serverport" == "" ]]; then
         echo "  <ServerPort> needs to be set, when installing server or display-devices!"
     fi
     exit 0
 fi
 
-if [[ "$installationPackage" == "camera" ]];
-    if [[ "$streamname" == "" ]]; 
+if [[ "$installationPackage" == "camera" ]]; then
+    if [[ "$streamname" == "" ]]; then
         echo "  <StreamName> needs to be set, when installing camera!"
     fi
-    if [[ "$awsaccess" == "" ]]; 
+    if [[ "$awsaccess" == "" ]]; then
         echo "  <AWS Access Key> needs to be set, when installing camera!"
     fi
-    if [[ "$awssecret" == "" ]]; 
+    if [[ "$awssecret" == "" ]]; then
         echo "  <AWS Secret Key> needs to be set, when installing camera!"
     fi
-    if [[ "$awsregion" == "" ]]; 
+    if [[ "$awsregion" == "" ]]; then
         echo "  <AWS Region> needs to be set, when installing camera!"
     fi
     exit 0
