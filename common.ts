@@ -1,9 +1,4 @@
 import {
-  mqtt,
-  io,
-  iot
-} from 'aws-iot-device-sdk-v2';
-import {
   exec,
   ExecOptions
 } from 'child_process';
@@ -40,4 +35,4 @@ function sleep(milliseconds: number) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
-export { Tunnel, awaitableExec, sleep }
+export { awaitableExec, sleep }
