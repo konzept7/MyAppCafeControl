@@ -17,6 +17,7 @@ interface ControllableProgram {
 
   connect(): Promise<any>;
   disconnect(): Promise<any>;
+  prepare(): Promise<any>;
 
   start(): Promise<any>;
   stop(isForced: boolean): Promise<any>;

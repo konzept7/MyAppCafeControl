@@ -4,7 +4,11 @@ import axios from 'axios';
 import { mqtt } from 'aws-iot-device-sdk-v2';
 import { awaitableExec, sleep } from './common'
 import { Job, jobUpdate, StatusDetails } from './job'
-import { IShadow } from './shadow'
+import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
+
+// control docker with dockerode
+import Dockerode from 'dockerode';
+var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
 
@@ -29,6 +33,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _serverPath!: string; // "/home/pi/srv/MyAppCafeServer";
   private _connection: mqtt.MqttClientConnection;
   private _thingName: string;
+  public shadow: ServerShadow;
+  public containers: Array<Dockerode.ContainerInfo>;
+  public images: Array<Dockerode.ImageInfo>;
+  private customMyappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
+  private myappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue", "redis"];
+
   get state() {
     return this._state;
   }
@@ -55,7 +65,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this._serverPath = path;
     this._hub = hub;
     this._thingName = thingName;
-    this._connection = connection
+    this._connection = connection;
+    const initialState = new ServerShadowState();
+    initialState.desired = ServerState.NeverInitialized;
+    initialState.reported = ServerState.closed;
+    this.containers = []
+    this.images = []
+    this.shadow = new ServerShadow(connection, initialState)
     this._stateConnection = new signalR.HubConnectionBuilder()
       .withUrl(this._hub)
       .withAutomaticReconnect({
@@ -93,7 +109,68 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     });
   }
 
-  // TODO: implement
+  async prepare(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      // list all running containers
+      docker.listContainers((err: any, response: Array<Dockerode.ContainerInfo>) => {
+        if (err) {
+          console.error('error listing containers', err)
+          return;
+        }
+        this.containers = response
+        console.log('containers running', this.containers)
+      });
+
+
+      // find out if images are built for all necessary containers
+      docker.listImages(async (err: any, response: Array<Dockerode.ImageInfo>) => {
+        if (err) {
+          console.error('error listing images', err)
+          return;
+        }
+
+        let imageInfoAccumulator = (array: Array<string>, entry: Dockerode.ImageInfo): Array<string> => {
+          return [...array, ...entry.RepoTags];
+        };
+
+        const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
+        if (this.myappcafeImages.every(name => allTags.some(tag => tag.includes(name)))) {
+          console.log('images for every needed container found!', this.myappcafeImages)
+        } else {
+          console.warn('it was not possible to find every container needed for myappcafe');
+        }
+
+        this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
+        const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
+        if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
+          console.log('images for every custom container found!')
+        }
+        else {
+          console.warn('not all images found! current images:', this.images);
+          console.warn('we\'ll try to build all images with docker-compose')
+          await awaitableExec('docker-compose build ' + this.images.join(' '), { cwd: this._serverPath })
+          this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
+          const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
+          if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
+            console.log('images for every custom container found!')
+          } else {
+            reject("even after trying to build new, not every image was found")
+          }
+        }
+        resolve(true);
+      })
+    });
+  }
+
+  async getRunningContainers(): Promise<Array<Dockerode.Container>> {
+    const containerInfos = await docker.listContainers();
+    const containers: Array<Dockerode.Container> = []
+    for await (const info of containerInfos) {
+      const container = await docker.getContainer(info.Id);
+      containers.push(container);
+    }
+    return containers;
+  }
 
   specialTopics: string[] = [];
   disconnect(): Promise<any> {
@@ -103,7 +180,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     throw new Error('Method not implemented.');
   }
 
-  handleShadow(shadow: Shadow) {
+  handleShadow(shadow: IShadowState) {
     return new Promise((resolve, reject) => {
       resolve(true)
     })
@@ -152,9 +229,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return false;
   }
 
-  async stopContainers(images: Array<string> | undefined) {
-    if (!images) images = []
-    return awaitableExec('docker-compose stop ' + images.join(' '), { cwd: this._serverPath })
+  async stopContainers(imageNames: Array<string> | undefined) {
+    if (!imageNames) imageNames = []
+    const infos = await docker.listContainers();
+    for await (const info of infos) {
+      if (!info.Names.some(n => this.myappcafeImages.some(i => i.includes(n)))) continue;
+      const container = docker.getContainer(info.Id);
+      await container.stop();
+    }
+    return true;
   }
 
   stop() {
@@ -185,6 +268,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
     if (operation === 'open-tunnel') {
       return await this.openTunnelHandler(job)
+    }
+    if (operation === 'shutdown') {
+      return await this.shutdownHandler(job)
     }
 
     console.warn("unknown command sent to handler", job.jobDocument);
@@ -283,6 +369,30 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     } catch (error) {
       console.error('error while starting box')
+      jobUpdate(job.jobId, job.Fail(error.message, "AXXXX"), this._thingName, this._connection);
+    }
+  }
+
+  async shutdownHandler(job: Job) {
+    if (job.status !== 'QUEUED') return;
+    try {
+      console.info('shutdown job received', job)
+      jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
+      console.info('current state of server application', this._state)
+      if (this._state === ServerState.Okay) {
+        console.log('pausing application before shutting it down');
+        try {
+          let pause = await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
+          console.info('paused application', pause.data);
+        } catch (error) {
+          console.error('error while waiting for application to be paused', error)
+        }
+      }
+      jobUpdate(job.jobId, job.Progress(0.75, "if application was running, it is now set to pause"), this._thingName, this._connection);
+      await this.shutdownGracefully(20);
+      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
+    } catch (error) {
+      console.error('error shutting down application')
     }
   }
 
@@ -309,7 +419,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (!job.jobDocument.command) {
         const noCommand = 'a shell command was requested, but there was no command string';
         console.warn(noCommand)
-        const fail = job.Fail(noCommand, "AXXX");
+        const fail = job.Fail(noCommand, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return;
       }
