@@ -195,6 +195,11 @@ const connection = client.new_connection(config);
    const serverPath = process.env.MYAPPCAFESERVER_PATH || "C:\\Users\\fbieleck\\source\\repos\\MyAppCafeServer"
    const serverUrl = "http://localhost:5002/api/"
    const myappcafeserver = new Myappcafeserver(serverUrl, serverUrl + 'appstate', serverPath, thingName, connection);
+   try {
+      await myappcafeserver.prepare();
+   } catch (error) {
+      console.error('error while preparing myappcafeserver', error)
+   }
    myappcafeserver.connect();
    myappcafeserver.on('change', (newState: ServerState) => {
       // myShadow.setCurrentState(newState);

@@ -1,1 +1,11 @@
-{"operation": "shutdown"}
+{
+  "operation": "shutdown",
+  "description": "Pauses the main application and shuts it down. Set the parameter 'isForced' to true if you want immediate shutdown. Use with caution.",
+  "parameters": {
+    "isForced": {
+      "type": "bool",
+      "description": "Immediately shuts down the application. Only set to true in emergency situations.",
+      "defaultValue": false
+    }
+  }
+}

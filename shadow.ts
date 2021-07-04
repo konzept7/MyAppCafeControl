@@ -72,4 +72,4 @@ class ServerShadow extends EventEmitter implements IShadow {
   }
 }
 
-export { ShadowSubtopic, shadowTopic, IShadowState, IShadow }
+export { ShadowSubtopic, shadowTopic, IShadowState, IShadow, ServerShadow, ServerShadowState }
