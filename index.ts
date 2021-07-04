@@ -9,13 +9,13 @@ import { mqtt, io, iot } from 'aws-iot-device-sdk-v2';
 import { access } from 'fs/promises';
 import { constants } from 'fs';
 
-import { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS } from './job'
-import { Shadow, shadowTopic, ShadowSubtopic } from './shadow'
-import { sleep, Tunnel } from './common'
+import { baseJobTopic, Job, JOBTOPICS } from './job'
+import { shadowTopic, ShadowSubtopic } from './shadow'
+import { sleep } from './common'
 import { ControllableProgram } from './controllableProgram';
 import { tunnelTopic } from './tunnel';
-import { Myappcafeserver } from './myappcafeserver'
-import { Thing, ThingType, ThingFactory } from './thing'
+import { Myappcafeserver, ServerState } from './myappcafeserver'
+// import { ThingFactory } from './thing'
 
 
 // ********************************************
@@ -79,10 +79,7 @@ if (!clientId) {
    process.exit(-1)
 }
 
-let thing = ThingFactory.createThing(thingName);
-
-
-
+// let thing = ThingFactory.createThing(thingName, region);
 
 // ********************************************
 // *** MYAPPCAFE SERVER HANDLING
@@ -104,16 +101,16 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
       });
 
       try {
-         const on_message = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            const json = decoder.decode(payload);
-            console.log(`Publish received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-            console.log(json);
-            const message = JSON.parse(json);
-            if (message.command && message.command === "end") {
-               console.log('application exit requested, disconnecting')
-               connection.disconnect()
-            }
-         }
+         // const on_message = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+         //    const json = decoder.decode(payload);
+         //    console.log(`Publish received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
+         //    console.log(json);
+         //    const message = JSON.parse(json);
+         //    if (message.command && message.command === "end") {
+         //       console.log('application exit requested, disconnecting')
+         //       connection.disconnect()
+         //    }
+         // }
 
          const on_job = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
             const json = decoder.decode(payload);
@@ -179,20 +176,20 @@ const config = config_builder.build();
 const client = new mqtt.MqttClient(client_bootstrap);
 const connection = client.new_connection(config);
 
-function publish(topic: string, message: any): void {
-   console.debug('sending message to topic ' + topic, message)
-   const msg = {
-      message: message
-   };
-   const json = JSON.stringify(msg);
-   connection.publish(topic, json, mqtt.QoS.AtLeastOnce, false);
-}
+// function publish(topic: string, message: any): void {
+//    console.debug('sending message to topic ' + topic, message)
+//    const msg = {
+//       message: message
+//    };
+//    const json = JSON.stringify(msg);
+//    connection.publish(topic, json, mqtt.QoS.AtLeastOnce, false);
+// }
 
 // connects to aws iot and retries after 10 seconds on error
 (async () => {
    await connection.connect()
 
-   let program: ControllableProgram;
+   // let program: ControllableProgram;
 
    // create server instance
    const serverPath = process.env.MYAPPCAFESERVER_PATH || "C:\\Users\\fbieleck\\source\\repos\\MyAppCafeServer"
@@ -200,7 +197,7 @@ function publish(topic: string, message: any): void {
    const myappcafeserver = new Myappcafeserver(serverUrl, serverUrl + 'appstate', serverPath, thingName, connection);
    myappcafeserver.connect();
    myappcafeserver.on('change', (newState: ServerState) => {
-      myShadow.setCurrentState(newState);
+      // myShadow.setCurrentState(newState);
    })
 
    while (true) {

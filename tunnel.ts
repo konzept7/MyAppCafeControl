@@ -2,7 +2,7 @@
 // *** SECURE TUNNEL
 // ********************************************
 
-import { exec, spawn } from 'node:child_process';
+import { exec, spawn } from 'child_process';
 import { access } from 'fs';
 
 function tunnelTopic(thingName: string) {

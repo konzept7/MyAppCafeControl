@@ -2,14 +2,13 @@ import { ControllableProgram } from './controllableProgram'
 import EventEmitter from 'events';
 import axios from 'axios';
 import { mqtt } from 'aws-iot-device-sdk-v2';
-import { awaitableExec, sleep, Tunnel } from './common'
+import { awaitableExec, sleep } from './common'
 import { Job, jobUpdate, StatusDetails } from './job'
-import { Shadow } from './shadow'
+import { IShadow } from './shadow'
 
 const signalR = require('@microsoft/signalr')
 
-
-enum ServerState {
+export enum ServerState {
   closed = "closed",
   Starting = "Starting",
   NeverInitialized = "NeverInitialized",
@@ -92,6 +91,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this._stateConnection.on("current", (args: ServerState) => {
       this.state = args
     });
+  }
+
+  // TODO: implement
+
+  specialTopics: string[] = [];
+  disconnect(): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
+  handleMessage(topic: string, message: any): Promise<any> {
+    throw new Error('Method not implemented.');
   }
 
   handleShadow(shadow: Shadow) {
