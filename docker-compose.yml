@@ -7,7 +7,7 @@ volumes:
 
 services:
   terminal:
-    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/AWS/terminal:latest
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/terminal:latest
     container_name: terminal
     volumes:
       - ".:/app"
@@ -25,7 +25,7 @@ services:
       - VUE_APP_PLU_PORT=${VUE_APP_PLU_PORT}
       - VUE_APP_MAINSERVER_PORT=${VUE_APP_MAINSERVER_PORT}
   config-provider:
-    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/AWS/config:latest
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/config:latest
     container_name: config-provider
     volumes:
       - ".:/app"
@@ -45,7 +45,7 @@ services:
         max-file: "2"
         max-size: "1m"
   status-frontend:
-    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/AWS/status:latest
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/status:latest
     container_name: status-frontend
     volumes:
       - ".:/app"
@@ -61,7 +61,7 @@ services:
       - VUE_APP_LANGUAGE=${VUE_APP_LANGUAGE}
       - VUE_APP_BOXID=${BOXID}
   display-queue:
-    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/AWS/queue:latest
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/queue:latest
     container_name: display-queue
     volumes:
       - ".:/app"
@@ -82,7 +82,7 @@ services:
       - VUE_APP_LANGUAGE=${VUE_APP_LANGUAGE}
       - VUE_APP_BOXID=${BOXID}
   myappcafeserver:
-    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/AWSmyappcafeserver:latest
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/myappcafeserver:latest
     container_name: myappcafeserver
     restart: unless-stopped
     volumes:
