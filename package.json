@@ -4,7 +4,9 @@
   "description": "",
   "main": "./index.js",
   "scripts": {
-    "test": "nodemon index.ts"
+    "test": "nodemon index.ts",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
   },
   "author": "Frank Bielecke, (C) IBS Dr. Klaus Schnürer GmbH 2021",
   "license": "ISC",
