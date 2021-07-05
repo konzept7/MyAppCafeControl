@@ -40,7 +40,7 @@ if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1"
     exit 0
 fi
 if [[ "$1" == "--version" ]] || [[ "$1" == "--v" ]]; then
-    echo "Version 1.3"
+    echo "Version 1.4"
     echo 
     exit 0
 fi
@@ -127,6 +127,15 @@ echo
 
 
 
+echo "Installing git..."
+sudo apt install -y git
+echo "Installing node..."
+cd ~
+curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
+sudo apt install nodejs
+
+
+
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gate" ]]; then
     echo "Installing docker..."
     sudo apt-get install apt-transport-https ca-certificates software-properties-common -y
@@ -196,7 +205,6 @@ fi
 
 # install and set up camera
 if [[ "$installationPackage" == "camera" ]]; then
-    sudo apt install -y git
     echo 'bcm2835-v4l2' | sudo tee -a /etc/modules
 
     # remove old clutter

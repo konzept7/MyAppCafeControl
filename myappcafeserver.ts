@@ -148,7 +148,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         else {
           console.warn('not all images found! current images:', this.images);
           console.warn('we\'ll try to build all images with docker-compose')
-          await awaitableExec('docker-compose build ' + this.images.join(' '), { cwd: this._serverPath })
+          await awaitableExec('docker-compose build ' + this.myappcafeImages.join(' '), { cwd: this._serverPath })
           this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
           const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
           if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
