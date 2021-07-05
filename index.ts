@@ -44,8 +44,8 @@ if (!endpoint) {
 }
 
 // checking certificates and keys
-const certDir = '~/certs/' // 'C:\\Users\\fbieleck\\source\\repos\\MyAppCafeControl\\' //'/etc/ssl/certs/'
-const rootCertPath = '/etc/ssl/certs/root-CA.crt';
+const certDir = './' // 'file://C:/Users\\fbieleck\\source\\repos\\MyAppCafeControl\\' //'/etc/ssl/certs/'
+const rootCertPath = certDir + 'root-CA.crt';
 const privateKeyPath = certDir + 'me.private.key';
 const certPath = certDir + 'me.cert.pem';
 (async () => {

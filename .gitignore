@@ -4,3 +4,4 @@ dist
 *.private.key
 *.public.key
 *.crt
+certs/

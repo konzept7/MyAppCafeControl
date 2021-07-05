@@ -9,8 +9,12 @@ fi
 read -p "Enter name for new thing: " thingName
 read -p "Enter type of new thing [server, gate, cam, display] : " thingType
 
+read -p "Enter AWS AccessKey : " accessKey
+read -p "Enter AWS SecretKey : " secretKey
+
+
 isValidThing=0
-if [ $thingType -eq "server" ]; then
+if [ "$thingType" -eq "server" ]; then
   isValidThing=1
   echo "Registering a new thing as $thingType"
   read -p "Enter hardware version [V1]: " hardwareVersion
@@ -29,18 +33,34 @@ fi
 # 
 
 # get a new certificate
-# aws iot create-keys-and-certificate --set-as-active --certificate-pem-outfile me.cert.pem --public-key-outfile me.public.key --private-key-outfile me.private.key --set-as-active | jq -> store cert arn
-# aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
-# wget rootcert
+echo "Creating keys and certificates"
+mkdir -p ~/certs
+cd ~/certs
+aws iot create-keys-and-certificate --set-as-active --certificate-pem-outfile me.cert.pem --public-key-outfile me.public.key --private-key-outfile me.private.key --set-as-active > ~/awsresponse.json
+certArn=$(`cat ~/awsresponse.json | jq '.certificateArn'`)
+aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
+echo "Get root certificates"
+sudo wget -O /etc/ssl/certs/root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
 # attach policy
+echo "Attaching policy"
+aws iot attach-policy --target $certArn --policy-name TutorialThing-Policy
 
-# neues thing
-# aws iot create-thing --thing-name batter01 --thing-type-name baseball_device --attribute-payload "{\"attributes\": {\"Owner\":\"name\"}}"
+# new thing
+echo "Creating new thing"
+aws iot create-thing --thing-name $thinName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"HardwareVersion\":\"v0.1\", \"Language\": \"de\", \"Region\": \"$region\"}}"
+
 # cert atttachen an thing
-# aws iot attach-thing-principal --thing-name batter01 --principal <certificate-arn>
+echo "Attaching principal to thing"
+aws iot attach-thing-principal --thing-name $thingName --principal $certArn
 # policy für zugriff erstellen und attachen (mal gucken ob notwendig)
 # aws iot create-policy --policy-name batterpolicy --policy-document file://batterpolicy.json
 # aws iot attach-policy --target <certificate arn> --policy-name batterpolicy
+
+
+# add thing to group
+echo "Adding thing to thing-group"
+aws iot add-thing-to-thing-group --thing-group-name MAC_Server_Debug --thing-name $thingName
+
 # ********************************************
 # *** PULL PROGRAM
 # ********************************************
