@@ -5,6 +5,7 @@ import { mqtt } from 'aws-iot-device-sdk-v2';
 import { awaitableExec, sleep } from './common'
 import { Job, jobUpdate, StatusDetails } from './job'
 import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
+import { SessionCredentials } from './sessionCredentials';
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -43,6 +44,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return this._state;
   }
   set state(value) {
+    console.info('current state will be set', value)
     if (this._state === value) return;
 
     this._state = value;
@@ -109,6 +111,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     });
   }
 
+
+
   async prepare(): Promise<boolean> {
     return new Promise((resolve, reject) => {
       // list all running containers
@@ -165,8 +169,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async getRunningContainers(): Promise<Array<Dockerode.Container>> {
     const containerInfos = await docker.listContainers();
     const containers: Array<Dockerode.Container> = []
-    for await (const info of containerInfos) {
-      const container = await docker.getContainer(info.Id);
+    for (const info of containerInfos) {
+      const container = docker.getContainer(info.Id);
       containers.push(container);
     }
     return containers;
@@ -212,6 +216,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     })
   }
   async startContainers(images: Array<string>) {
+    console.log('starting containers as requested', images)
     return awaitableExec('docker-compose up -d ' + images.join(' '), {
       cwd: this._serverPath
     })
@@ -250,6 +255,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async handleJob(job: Job) {
+    console.log('trying to handle a job', job)
     const operation = job.jobDocument.operation;
     if (operation === 'update') {
       return await this.updateHandler(job);
@@ -281,21 +287,27 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async shutdownGracefully(inSeconds: number) {
     if (!inSeconds) inSeconds = 10;
-    console.log('stopping server if not already closed')
+    console.log('stopping server if not already closed', this.state)
     return new Promise(async (resolve, reject) => {
       if (this.state !== 'closed') {
         try {
-          await axios.post(this._url + "init/shutdown/" + Math.floor(inSeconds));
+          await axios.post(this._url + "init/shutdown/" + Math.floor(inSeconds), undefined, { timeout: 10 * 1000 });
         } catch (error) {
           console.error('error shutting down application', error);
           reject(error);
         }
         console.log('scheduled server shutdown in ' + inSeconds + " seconds")
+        this.on('change', newValue => {
+          if (newValue === 'closed')
+            resolve('server is shut down');
+        })
       }
-      this.on('change', newValue => {
-        if (newValue === 'closed')
-          resolve('server is shut down');
-      })
+      else {
+        console.log('server was already shut down');
+        resolve('server is shut down');
+
+      }
+
     })
   }
 
@@ -369,7 +381,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     } catch (error) {
       console.error('error while starting box')
-      jobUpdate(job.jobId, job.Fail(error.message, "AXXXX"), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Fail(JSON.stringify(error), "AXXXX"), this._thingName, this._connection);
     }
   }
 
@@ -457,7 +469,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, success, this._thingName, this._connection)
       } catch (error) {
         console.error('error starting containers', error);
-        const fail = job.Fail(error, "AXXXX");
+        const fail = job.Fail('error starting containers:\n' + error, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -490,8 +502,20 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // await awaitableExec("chromium-browser --noerrdialogs /home/pi/srv/MyAppCafeControl/update.html --incognito --kiosk --start-fullscreen --disable-translate --disable-features=TranslateUI --window-size=1024,768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0", {cwd: process.cwd()})
 
       // TODO: docker login
-      await awaitableExec("$(aws ecr get-login --region eu-central-1 --no-include-email)", {
-        cwd: this._serverPath
+      let credentials: SessionCredentials | undefined
+      try {
+        credentials = await SessionCredentials.createCredentials(this._serverPath, this._thingName, "iot-update-role");
+        if (!credentials) throw new Error("error getting credentials, job will fail");
+
+      } catch (error) {
+        console.error('unable to get credentials for update', error)
+        reject('unable to get credentials for update\n' + error);
+        return
+      }
+
+      // https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_GetAuthorizationToken.html - look here if below command doesn't work, or the next command doesn't work!
+      await awaitableExec("aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com", {
+        cwd: this._serverPath, env: credentials.createEnv()
       })
       // await awaitableExec("pkill chromium", {cwd: process.cwd()})
 
@@ -507,7 +531,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         } catch (error) {
           console.error('error while pulling container ' + image, error)
-          reject(error)
+          reject('unable to pull software update\n' + error);
         }
 
         try {

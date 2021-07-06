@@ -17,6 +17,9 @@ import { tunnelTopic } from './tunnel';
 import { Myappcafeserver, ServerState } from './myappcafeserver'
 // import { ThingFactory } from './thing'
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 
 // ********************************************
 // *** CHECK SETUP
@@ -68,14 +71,23 @@ const certPath = certDir + 'me.cert.pem';
       process.exit(-1)
    }
 })()
-const clientId = process.env.CLIENT_ID || 'sdk-nodejs-e936c632-78a6-4dde-819a-56fdc764ab67';
-if (!clientId) {
+const thingName = process.env.THINGNAME || "";
+if (thingName === "") {
+   console.error('Please provide your thing name as environment variable [THINGNAME]')
+   process.exit(-1)
+}
+const clientId = process.env.CLIENT_ID || "";
+if (clientId === "") {
    console.error('Please provide your client id as environment variable [CLIENT_ID]')
    process.exit(-1)
 }
-const thingName = process.env.THING_NAME || 'TutorialThing';
-if (!clientId) {
-   console.error('Please provide your thing name as environment variable [THING_NAME]')
+if (!clientId.startsWith("MyAppCafeControl")) {
+   console.error('client id must start with MyAppCafeControl', clientId)
+   process.exit(-1)
+}
+const serverPath = process.env.MYAPPCAFESERVER_PATH || "";
+if (serverPath === "") {
+   console.error('Please provide your server path as environment variable [MYAPPCAFESERVER_PATH]')
    process.exit(-1)
 }
 
@@ -192,7 +204,7 @@ const connection = client.new_connection(config);
    // let program: ControllableProgram;
 
    // create server instance
-   const serverPath = process.env.MYAPPCAFESERVER_PATH || "C:\\Users\\fbieleck\\source\\repos\\MyAppCafeServer"
+
    const serverUrl = "http://localhost:5002/api/"
    const myappcafeserver = new Myappcafeserver(serverUrl, serverUrl + 'appstate', serverPath, thingName, connection);
    try {
