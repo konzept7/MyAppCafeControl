@@ -6,3 +6,4 @@ dist
 *.crt
 certs/
 .env
+.env.local
