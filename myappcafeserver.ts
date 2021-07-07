@@ -477,7 +477,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
 
   async openTunnelHandler(job: Job) {
+    console.log('got request to open a tunnel', job)
+    return new Promise((resolve, reject) => {
 
+    })
   }
 
   async executeUpdate(job: Job | undefined) {
@@ -518,9 +521,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
 
       // https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_GetAuthorizationToken.html - look here if below command doesn't work, or the next command doesn't work!
-      await awaitableExec("aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com", {
-        cwd: this._serverPath, env: credentials.createEnv()
-      })
+
+      try {
+        await awaitableExec("aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com", {
+          cwd: this._serverPath, env: credentials.createEnv()
+        })
+      } catch (error) {
+        console.error('unable to login with credentials for update', error)
+        reject('unable to login with credentials for update\n' + error);
+        return
+      }
       // await awaitableExec("pkill chromium", {cwd: process.cwd()})
 
       for (let index = 0; index < images.length; index++) {
