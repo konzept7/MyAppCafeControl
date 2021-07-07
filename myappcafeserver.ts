@@ -480,20 +480,24 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   }
 
-  async executeUpdate(job: Job) {
+  async executeUpdate(job: Job | undefined) {
     return new Promise(async (resolve, reject) => {
       console.log('starting update now');
 
       let progress = 0.1
       await this.shutdownGracefully(10);
-      let progressRequest = job.Progress(progress, 'shutting down application');
-      jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
+      if (job) {
+        let progressRequest = job.Progress(progress, 'shutting down application');
+        jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
+      }
 
-      const images = (!job.jobDocument.images || job.jobDocument.images === []) ? this._containers : job.jobDocument.images;
+      const images = (!job || !job.jobDocument.images || job.jobDocument.images === []) ? this._containers : job.jobDocument.images;
       console.log('handling update request', images);
       progress += 0.1
-      progressRequest = job.Progress(progress, 'downloading');
-      jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
+      if (job) {
+        let progressRequest = job.Progress(progress, 'downloading');
+        jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
+      }
 
       const step = (0.8 - progress) / (images.length * 2);
 
@@ -527,8 +531,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           //    cwd: this._serverPath
           // })
           progress += step;
-          progressRequest = job.Progress(progress, 'pulled ' + image);
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          if (job) {
+            let progressRequest = job.Progress(progress, 'pulled ' + image);
+            jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          }
         } catch (error) {
           console.error('error while pulling container ' + image, error)
           reject('unable to pull software update\n' + error);
@@ -542,16 +548,21 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             cwd: this._serverPath
           })
           progress += step;
-          progressRequest = job.Progress(progress, 'restarted ' + image);
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          if (job) {
+            let progressRequest = job.Progress(progress, 'restarted ' + image);
+            jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          }
 
         } catch (error) {
           console.error('error while restarting container ' + image, error)
           reject(error)
         }
       }
-      const succeeded = job.Succeed();
-      jobUpdate(job.jobId, succeeded, this._thingName, this._connection);
+      if (job) {
+        const succeeded = job.Succeed();
+        jobUpdate(job.jobId, succeeded, this._thingName, this._connection);
+      }
+
 
       // await awaitableExec("chromium-browser --noerrdialogs http://192.168.0.17:5005/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=TranslateUI --window-size=1024,768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0", {cwd: process.cwd()})
 
