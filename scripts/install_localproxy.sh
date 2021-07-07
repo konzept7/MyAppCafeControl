@@ -57,6 +57,7 @@ echo '4. Installing OpenSSL DevLibs'
 sudo apt install -y libssl-dev
 
 echo '5. Installing Catch2 Test Framework'
+cd /home/pi/dependencies
 git clone --branch v2.13.2 https://github.com/catchorg/Catch2.git
 cd Catch2
 mkdir build
@@ -67,7 +68,13 @@ sudo make install
 echo '-----------------------------------------------------------'
 echo
 
-
+cd /home/pi/
+git clone https://github.com/aws-samples/aws-iot-securetunneling-localproxy
+cd aws-iot-securetunneling-localproxy
+mkdir build
+cd build
+cmake ../
+make
 
 echo
 echo
