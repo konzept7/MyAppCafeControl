@@ -2,7 +2,7 @@
 // *** SECURE TUNNEL
 // ********************************************
 
-import { exec, spawn } from 'child_process';
+import { exec, spawn, execFile } from 'child_process';
 import { access } from 'fs';
 
 function tunnelTopic(thingName: string) {
@@ -50,10 +50,12 @@ class Tunnel {
     const command = `nohup ${process.env.LOCALPROXY_PATH}/localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`
     console.log('opening tunnel now with command in ' + process.env.LOCALPROXY_PATH, command)
     try {
-      spawn(command, { cwd: process.env.LOCALPROXY_PATH }).addListener('error', (error) => {
-        console.error('error spawning tunnel command', command, error)
-        this.isOpen = false;
-        return;
+      execFile(command, { cwd: process.env.LOCALPROXY_PATH }, (error, stdout, stderr) => {
+        if (error) {
+          console.error('stderr', stderr);
+          this.isOpen = false;
+        }
+        console.log('stdout', stdout)
       })
     } catch (error) {
       console.error('error spawning tunnel command', command, error)
