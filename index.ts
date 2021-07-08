@@ -13,7 +13,7 @@ import { baseJobTopic, Job, JOBTOPICS } from './job'
 import { shadowTopic, ShadowSubtopic } from './shadow'
 import { sleep } from './common'
 import { ControllableProgram } from './controllableProgram';
-import { tunnelTopic } from './tunnel';
+import { Tunnel, tunnelTopic } from './tunnel';
 import { Myappcafeserver, ServerState } from './myappcafeserver'
 // import { ThingFactory } from './thing'
 
@@ -27,7 +27,7 @@ dotenv.config();
 
 // check if we are in a valid region
 // this is necessary to configure the endpoint
-const region = process.env.REGION || 'eu-central-1';
+const region = process.env.AWS_REGION || 'eu-central-1';
 const endpoints: {
    [index: string]: string
 } = {
@@ -90,6 +90,11 @@ if (serverPath === "") {
    console.error('Please provide your server path as environment variable [MYAPPCAFESERVER_PATH]')
    process.exit(-1)
 }
+const localproxyPath = process.env.LOCALPROXY_PATH || "";
+if (localproxyPath === "") {
+   console.error('Please provide your local proxy path as environment variable [LOCALPROXY_PATH]')
+   process.exit(-1);
+}
 
 // let thing = ThingFactory.createThing(thingName, region);
 
@@ -113,17 +118,6 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
       });
 
       try {
-         // const on_message = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-         //    const json = decoder.decode(payload);
-         //    console.log(`Publish received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-         //    console.log(json);
-         //    const message = JSON.parse(json);
-         //    if (message.command && message.command === "end") {
-         //       console.log('application exit requested, disconnecting')
-         //       connection.disconnect()
-         //    }
-         // }
-
          const on_job = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
             const json = decoder.decode(payload);
             console.log(`Job received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
@@ -141,9 +135,12 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
          }
 
          const on_tunnel = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            const json = decoder.decode(payload);
+            const tunnelAttributes = decoder.decode(payload);
+            const json = JSON.parse(tunnelAttributes);
             console.log(`Tunnel notification received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-            console.log(json);
+            console.log('received tunnel ');
+            const tunnel = new Tunnel(region, json.services, json.clientAccessToken)
+            program.handleTunnel(tunnel);
          }
 
          await connection.subscribe(baseJobTopic(thingName) + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)

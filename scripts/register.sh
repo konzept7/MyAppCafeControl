@@ -47,7 +47,7 @@ aws iot attach-policy --target $certArn --policy-name TutorialThing-Policy
 
 # new thing
 echo "Creating new thing"
-aws iot create-thing --thing-name $thinName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"HardwareVersion\":\"v0.1\", \"Language\": \"de\", \"Region\": \"$region\"}}"
+aws iot create-thing --thing-name $thingName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"HardwareVersion\":\"v0.1\", \"Language\": \"de\", \"Region\": \"$region\"}}"
 
 # cert atttachen an thing
 echo "Attaching principal to thing"

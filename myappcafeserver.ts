@@ -6,6 +6,7 @@ import { awaitableExec, sleep } from './common'
 import { Job, jobUpdate, StatusDetails } from './job'
 import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
 import { SessionCredentials } from './sessionCredentials';
+import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -152,7 +153,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         else {
           console.warn('not all images found! current images:', this.images);
           console.warn('we\'ll try to build all images with docker-compose')
-          await awaitableExec('docker-compose build ' + this.myappcafeImages.join(' '), { cwd: this._serverPath })
+          try {
+            //await this.executeUpdate(undefined);
+          } catch (error) {
+            console.error('error executing update', error);
+            reject('error executing update\n' + error?.message);
+          }
+          // await awaitableExec('docker-compose build ' + this.myappcafeImages.join(' '), { cwd: this._serverPath })
           this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
           const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
           if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
@@ -271,9 +278,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
     if (operation === 'clean-start') {
       return await this.cleanStartHandler(job)
-    }
-    if (operation === 'open-tunnel') {
-      return await this.openTunnelHandler(job)
     }
     if (operation === 'shutdown') {
       return await this.shutdownHandler(job)
@@ -476,9 +480,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
 
-  async openTunnelHandler(job: Job) {
-    console.log('got request to open a tunnel', job)
+  async handleTunnel(tunnel: Tunnel) {
+    console.log('got request to open a tunnel', tunnel)
     return new Promise((resolve, reject) => {
+      try {
+        if (!tunnel.isOpen) tunnel.open();
+        resolve(tunnel);
+      } catch (error) {
+        console.error('error opening tunnel', error)
+        reject('error opening tunnel\n' + error)
+      }
 
     })
   }

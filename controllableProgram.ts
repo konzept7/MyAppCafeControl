@@ -1,5 +1,6 @@
 import { Job } from './job'
 import { IShadow, IShadowState } from './shadow'
+import { Tunnel } from './tunnel'
 
 enum ProgramEvents {
   readyForUpdate = "readyForUpdate",
@@ -29,6 +30,8 @@ interface ControllableProgram {
   handleJob(job: Job): Promise<any>
   handleShadow(shadow: IShadowState): Promise<any>
   handleMessage(topic: string, message: any): Promise<any>
+
+  handleTunnel(tunnel: Tunnel): Promise<any>
 }
 
 export { ProgramEvents, ControllableProgram }

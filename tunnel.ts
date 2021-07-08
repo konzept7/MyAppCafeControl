@@ -47,7 +47,14 @@ class Tunnel {
   }
 
   open() {
-    spawn(`nohup ./aws-iot-localproxy/localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`)
+    const command = `nohup ./aws-iot-localproxy/localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`
+    console.log('opening tunnel now with command', command)
+    try {
+      spawn(command)
+    } catch (error) {
+      console.error('error spawning tunnel command', command, error)
+      this.isOpen = false;
+    }
     this.isOpen = true;
   }
   stop() {
