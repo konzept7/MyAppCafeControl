@@ -95,7 +95,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
         },
       })
-      .configureLogging("information")
+      .configureLogging("error")
       .build();
 
     this._stateConnection.onclose((error: any) => {

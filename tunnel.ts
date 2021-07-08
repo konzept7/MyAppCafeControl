@@ -2,8 +2,10 @@
 // *** SECURE TUNNEL
 // ********************************************
 
-import { exec, spawn, execFile } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { access } from 'fs';
+import path from 'path';
+
 
 function tunnelTopic(thingName: string) {
   // handles the mqtt connection
@@ -47,18 +49,26 @@ class Tunnel {
   }
 
   open() {
-    const command = `nohup ${process.env.LOCALPROXY_PATH}/localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`
-    console.log('opening tunnel now with command in ' + process.env.LOCALPROXY_PATH, command)
+    const proxyPath = path.join(process.env.LOCALPROXY_PATH || '', 'localproxy')
     try {
-      execFile(command, { cwd: process.env.LOCALPROXY_PATH }, (error, stdout, stderr) => {
-        if (error) {
-          console.error('stderr', stderr);
-          this.isOpen = false;
-        }
-        console.log('stdout', stdout)
-      })
+      const iotagent = spawn(proxyPath, [
+        '-r', this._region,
+        '-d', this._services.map(s => s + '=' + TunnelServices[s]).join(','),
+        '-t', this._token,
+      ]);
+      iotagent.on('error', (e: Error) => console.error(e));
+      iotagent.on('close', (e: Error) => console.info(e));
+      iotagent.stderr.on('data', (data: any) => {
+        console.error('stderr');
+        console.error(Buffer.from(data).toString());
+      });
+
+      iotagent.stdout.on('data', (data: any) => {
+        console.error('stdout');
+        console.error(Buffer.from(data).toString());
+      });
     } catch (error) {
-      console.error('error spawning tunnel command', command, error)
+      console.error('error spawning tunnel command', proxyPath, error)
       this.isOpen = false;
       return;
     }
