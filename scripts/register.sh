@@ -37,6 +37,14 @@ echo "Creating keys and certificates"
 mkdir -p ~/certs
 cd ~/certs
 aws iot create-keys-and-certificate --set-as-active --certificate-pem-outfile me.cert.pem --public-key-outfile me.public.key --private-key-outfile me.private.key --set-as-active > ~/awsresponse.json
+# mkdir ~/.ssh
+# cp me.public.key ~/.ssh/id_rsa.pub
+# cp me.private.key ~/.ssh/id_rsa
+# sudo chmod 600 ~/.ssh/id_rsa
+# sudo chmod 600 ~/.ssh/id_rsa.pub
+# eval $(ssh-agent -s)
+# ssh-add ~/.ssh/id_rsa
+
 certArn=$(`cat ~/awsresponse.json | jq '.certificateArn'`)
 aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
 echo "Get root certificates"

@@ -1,0 +1,14 @@
+    [Unit]
+    Description=MyAppCafeControl
+    After=network.target
+    
+    [Service]
+    ExecStart=node dist/index.js
+    WorkingDirectory=/srv/MyAppCafeControl/
+    StandardOutput=inherit
+    StandardError=inherit
+    Restart=always
+    User=pi
+    
+    [Install]
+    WantedBy=multi-user.target
