@@ -47,13 +47,18 @@ class Tunnel {
   }
 
   open() {
-    const command = `nohup ./localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`
-    console.log('opening tunnel now with command', command)
+    const command = `nohup ${process.env.LOCALPROXY_PATH}/localproxy -r ${this._region} -d ${this._services.map(s => s + '=' + TunnelServices[s]).join(',')} -t ${this._token} &> tunnel.log`
+    console.log('opening tunnel now with command in ' + process.env.LOCALPROXY_PATH, command)
     try {
-      spawn(command, { cwd: process.env.LOCALPROXY_PATH })
+      spawn(command, { cwd: process.env.LOCALPROXY_PATH }).addListener('error', (error) => {
+        console.error('error spawning tunnel command', command, error)
+        this.isOpen = false;
+        return;
+      })
     } catch (error) {
       console.error('error spawning tunnel command', command, error)
       this.isOpen = false;
+      return;
     }
     this.isOpen = true;
   }
