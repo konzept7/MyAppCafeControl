@@ -3,12 +3,13 @@
     After=network.target
     
     [Service]
-    ExecStart=node dist/index.js
-    WorkingDirectory=/srv/MyAppCafeControl/
-    StandardOutput=inherit
-    StandardError=inherit
+    ExecStart=/usr/local/bin/node dist/index.js
+    WorkingDirectory=/home/pi/srv/MyAppCafeControl/
+    StandardOutput=file:/home/pi/srv/MyAppCafeControl/log1.txt
+    StandardError=file:/home/pi/srv/MyAppCafeControl/log2.txt
     Restart=always
     User=pi
-    
+    EnvironmentFile=/home/pi/srv/MyAppCafeControl/.env
+
     [Install]
     WantedBy=multi-user.target

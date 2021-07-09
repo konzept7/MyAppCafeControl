@@ -7,3 +7,5 @@ dist
 certs/
 .env
 .env.local
+log1.txt
+log2.txt

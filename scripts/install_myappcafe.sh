@@ -148,10 +148,8 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
 
     if [[ "$installationPackage" == "server" ]]; then
         echo "Installing docker-compose"
-        sudo apt-get install libffi-dev libssl-dev -y
-        sudo apt install python3-dev -y
-        sudo apt-get install -y python3 python3-pip -y
-        sudo pip3 install docker-compose==1.26.0 -y
+        sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev -y
+        sudo pip3 install docker-compose==1.26.0
     fi
     echo '-----------------------------------------------------------'
 fi
