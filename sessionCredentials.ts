@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import https from 'https'
 import axios from 'axios';
-
+import path from 'path';
 export class SessionCredentials {
   accessKeyId!: string;
   secretAccessKey!: string;
@@ -23,9 +23,9 @@ export class SessionCredentials {
   static async createCredentials(certPath: string, thingName: string, forRole: string): Promise<SessionCredentials | undefined> {
     console.info(`trying to get credentials for ${thingName} and role ${forRole}, using certs from ${certPath}`);
     const httpsAgent = new https.Agent({
-      ca: readFileSync(certPath + "root-CA.crt"),
-      cert: readFileSync(certPath + "me.cert.pem"),
-      key: readFileSync(certPath + "me.private.key"),
+      ca: readFileSync(path.join(certPath, "root-CA.crt")),
+      cert: readFileSync(path.join(certPath, "me.cert.pem")),
+      key: readFileSync(path.join(certPath, "me.private.key")),
     })
     try {
       const iotUpdateCredentialsRequest = await axios.get(`https://c2arg21suyn6cx.credentials.iot.eu-central-1.amazonaws.com/role-aliases/${thingName}-${forRole}/credentials`, {
