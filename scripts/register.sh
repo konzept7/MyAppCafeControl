@@ -11,7 +11,9 @@ read -p "Enter type of new thing [server, gate, cam, display] : " thingType
 
 read -p "Enter AWS AccessKey : " accessKey
 read -p "Enter AWS SecretKey : " secretKey
+read -p "Enter AWS Session Token : " sessionToken
 
+# TODO: export keys/token
 
 isValidThing=0
 if [ "$thingType" -eq "server" ]; then
@@ -25,9 +27,16 @@ if [ "$thingType" -eq "server" ]; then
   echo "THINGNAME=$thingName" >> .env
 fi
 
+
 # ********************************************
 # *** REGISTER THING
 # ********************************************
+
+echo "installing packages for MyAppCafeControl"
+cd ~/srv/MyAppCafeControl
+npm install
+npm run build
+
 
 # get a new certificate
 echo "Creating keys and certificates"
@@ -37,7 +46,7 @@ aws iot create-keys-and-certificate --region $region --set-as-active --certifica
 certArn=$(`cat ~/awsresponse.json | jq '.certificateArn'`)
 aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
 echo "Get root certificates"
-sudo wget -O /etc/ssl/certs/root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
+sudo wget -O root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
 # attach policy
 echo "Attaching policy"
 aws iot attach-policy --region $region --target $certArn --policy-name TutorialThing-Policy
@@ -57,7 +66,7 @@ aws iot add-thing-to-thing-group --region $region --thing-group-name MAC_Server_
 
 # create role alias
 echo "creating role alias"
-aws iot create-role-alias --region $region --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
+aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias wCYVv2hWWEMUmBNAPjMIK-iot-update-role-alias --credential-duration-seconds 3600
 
 
 # ********************************************

@@ -42,7 +42,7 @@ fi
 # first shutdown service
 sudo systemctl stop myappcafecontrol.service
 # pull current version
-cd /srv/MyAppCafeControl
+cd /home/pi/srv/MyAppCafeControl
 git pull origin master
 npm install
 npm run build

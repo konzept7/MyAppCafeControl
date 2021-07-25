@@ -76,15 +76,15 @@ if (thingName === "") {
    console.error('Please provide your thing name as environment variable [THINGNAME]')
    process.exit(-1)
 }
-const clientId = process.env.CLIENT_ID || "";
-if (clientId === "") {
-   console.error('Please provide your client id as environment variable [CLIENT_ID]')
-   process.exit(-1)
-}
-if (!clientId.startsWith("MyAppCafeControl")) {
-   console.error('client id must start with MyAppCafeControl', clientId)
-   process.exit(-1)
-}
+const clientId = "MyAppCafeControl-" + thingName //process.env.CLIENT_ID || "";
+// if (clientId === "") {
+//    console.error('Please provide your client id as environment variable [CLIENT_ID]')
+//    process.exit(-1)
+// }
+// if (!clientId.startsWith("MyAppCafeControl")) {
+//    console.error('client id must start with MyAppCafeControl', clientId)
+//    process.exit(-1)
+// }
 const serverPath = process.env.MYAPPCAFESERVER_PATH || "";
 if (serverPath === "") {
    console.error('Please provide your server path as environment variable [MYAPPCAFESERVER_PATH]')

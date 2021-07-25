@@ -199,6 +199,9 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     sudo telinit q
     echo '-----------------------------------------------------------'
     echo
+
+    # TODO: check:
+    (crontab -l ; echo "@reboot /srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh")| crontab -
 fi
 
 # install and set up camera
