@@ -134,8 +134,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           return;
         }
 
+        console.log('all images', response)
+
         let imageInfoAccumulator = (array: Array<string>, entry: Dockerode.ImageInfo): Array<string> => {
-          return [...array, ...entry.RepoTags];
+          return [...array, ...(entry.RepoTags ?? [])];
         };
 
         const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
@@ -145,7 +147,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           console.warn('it was not possible to find every container needed for myappcafe');
         }
 
-        this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
+        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")) ?? false));
         const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
         if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
           console.log('images for every custom container found!')
@@ -534,11 +536,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_GetAuthorizationToken.html - look here if below command doesn't work, or the next command doesn't work!
 
       try {
-        await awaitableExec("aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com", {
-          cwd: this._serverPath, env: credentials.createEnv()
+        await awaitableExec("export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose pull", {
+          cwd: this._serverPath
         })
       } catch (error) {
-        console.error('unable to login with credentials for update', error)
+        console.error('error while downloading update', error)
         reject('unable to login with credentials for update\n' + error);
         return
       }
