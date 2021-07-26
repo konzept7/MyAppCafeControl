@@ -132,9 +132,10 @@ sudo apt install -y git
 echo "Installing node..."
 cd ~
 curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
-sudo apt install nodejs
+sudo apt install -y nodejs
 
-
+echo "Installing jq"
+sudo apt install -y jq
 
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gate" ]]; then
     echo "Installing docker..."

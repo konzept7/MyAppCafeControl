@@ -2,21 +2,27 @@
 
 # get current time from ntp before doing anything
 
-if [ -e "./.env" ]; then
+if [[ -e "./.env" ]]; then
   echo ".env file already exists. If you want the script to run, you have to delete it."
+  exit 1
 fi
 
 read -p "Enter name for new thing: " thingName
-read -p "Enter type of new thing [server, gate, cam, display] : " thingType
+read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
+
+# TODO: check type
 
 read -p "Enter AWS AccessKey : " accessKey
 read -p "Enter AWS SecretKey : " secretKey
 read -p "Enter AWS Session Token : " sessionToken
+export AWS_SECRET_ACCESS_KEY=$secretKey
+export AWS_ACCESS_KEY_ID=$accessKey
+export AWS_SESSION_TOKEN=$sessionToken
 
 # TODO: export keys/token
 
 isValidThing=0
-if [ "$thingType" -eq "server" ]; then
+if [[ "$thingType" == "Server" ]]; then
   isValidThing=1
   echo "Registering a new thing as $thingType"
   read -p "Enter hardware version [V1]: " hardwareVersion
@@ -43,7 +49,10 @@ echo "Creating keys and certificates"
 cd ~/srv/MyAppCafeControl
 aws iot create-keys-and-certificate --region $region --set-as-active --certificate-pem-outfile me.cert.pem --public-key-outfile me.public.key --private-key-outfile me.private.key > ~/awsresponse.json
 
-certArn=$(`cat ~/awsresponse.json | jq '.certificateArn'`)
+certArn=$(cat ~/awsresponse.json | jq -r '.certificateArn')
+
+echo "created certificate with ARN $certArn in region $region"
+
 aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
 echo "Get root certificates"
 sudo wget -O root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
@@ -66,9 +75,12 @@ aws iot add-thing-to-thing-group --region $region --thing-group-name MAC_Server_
 
 # create role alias
 echo "creating role alias"
-aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias wCYVv2hWWEMUmBNAPjMIK-iot-update-role-alias --credential-duration-seconds 3600
+aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
 
 
-# ********************************************
-# *** PULL PROGRAM
-# ********************************************
+echo ""
+echo "# ********************************************"
+echo "# *** Registration complete *** "
+echo "# *** Successfully registed $thingName as $thingType in $region *** "
+echo "# ********************************************"
+echo "  "

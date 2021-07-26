@@ -28,7 +28,7 @@ export class SessionCredentials {
       key: readFileSync(path.join(certPath, "me.private.key")),
     })
     try {
-      const iotUpdateCredentialsRequest = await axios.get(`https://c2arg21suyn6cx.credentials.iot.eu-central-1.amazonaws.com/role-aliases/${thingName}-${forRole}/credentials`, {
+      const iotUpdateCredentialsRequest = await axios.get(`https://c2arg21suyn6cx.credentials.iot.eu-central-1.amazonaws.com/role-aliases/${thingName}-${forRole}-alias/credentials`, {
         headers: {
           "x-amzn-iot-thingname": thingName
         },
