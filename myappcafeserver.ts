@@ -503,8 +503,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       let progress = 0.1
 
       try {
-        if (this.state !== ServerState.closed)
-          await axios.put(this._url + "init/setState/Update", {}, { timeout: 20 * 1000 });
+        if (this.state !== ServerState.closed) {
+          console.log('setting state to updating')
+          const updateResponse = await axios.put(this._url + "init/setState/Updating", {}, { timeout: 20 * 1000 });
+          console.log('updating request returned', updateResponse)
+        }
       } catch (error) {
         console.warn('error while trying to send update notification to main server', error)
       }
