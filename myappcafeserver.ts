@@ -331,7 +331,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   // if possible, please use images in that order
   // all frontend applications reload when myappcafeserver is restarted,
   // that way we ensure that the browser reloads (and gets the updated version of our frontends)
-  private _containers = ['redis', 'config-provider', 'status-frontend', 'display-queue', 'order-terminal', 'myappcafeserver'];
+  private _containers = ['redis', 'config-provider', 'status-frontend', 'display-queue', 'terminal', 'myappcafeserver'];
   async updateHandler(job: Job) {
 
     // if no details are provided or the current step is requested, we did not do any work on the job yet
@@ -419,11 +419,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       try {
         if (this.isReadyForUpdate() || job.jobDocument.isForced) {
           await this.executeUpdate(job);
+          resolve(job)
+        } else {
+          this.once('readyForUpdate', async () => {
+            await this.executeUpdate(job);
+            resolve(job)
+          })
         }
-        this.once('readyForUpdate', async () => {
-          await this.executeUpdate(job);
-        })
-        resolve(job)
       } catch (error) {
         console.error('error while executing update', error)
         reject(error)
@@ -505,7 +507,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       try {
         if (this.state !== ServerState.closed) {
           console.log('setting state to updating')
-          const updateResponse = await axios.put(this._url + "init/setState/Updating", {}, { timeout: 20 * 1000 });
+          const updateResponse = await axios.put(this._url + "setState/Updating", {}, { timeout: 20 * 1000 });
           console.log('updating request returned', updateResponse)
         }
       } catch (error) {
