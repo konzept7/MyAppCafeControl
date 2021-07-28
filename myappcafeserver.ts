@@ -10,6 +10,7 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
+import { Server } from 'http';
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
@@ -501,6 +502,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       console.log('starting update now');
 
       let progress = 0.1
+
+      try {
+        if (this.state !== ServerState.closed)
+          await axios.put(this._url + "init/setState/Update", {}, { timeout: 20 * 1000 });
+      } catch (error) {
+        console.warn('error while trying to send update notification to main server', error)
+      }
+
       await this.shutdownGracefully(10);
       if (job) {
         let progressRequest = job.Progress(progress, 'shutting down application');
