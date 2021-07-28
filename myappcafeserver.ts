@@ -508,13 +508,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         if (this.state !== ServerState.closed) {
           console.log('setting state to updating')
           const updateResponse = await axios.put(this._url + "setState/Updating", {}, { timeout: 20 * 1000 });
-          console.log('updating request returned', updateResponse)
+          console.log('updating request returned', updateResponse.status)
         }
       } catch (error) {
         console.warn('error while trying to send update notification to main server', error)
       }
-
-      await this.shutdownGracefully(10);
       if (job) {
         let progressRequest = job.Progress(progress, 'shutting down application');
         jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
@@ -528,13 +526,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
       }
 
-      const step = (0.8 - progress) / (images.length * 2);
-
-      // TODO: maybe close chromium on server and display update message
-      // await awaitableExec("pkill chromium", {cwd: process.cwd()})
-      // await awaitableExec("chromium-browser --noerrdialogs /home/pi/srv/MyAppCafeControl/update.html --incognito --kiosk --start-fullscreen --disable-translate --disable-features=TranslateUI --window-size=1024,768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0", {cwd: process.cwd()})
-
-      // TODO: docker login
       let credentials: SessionCredentials | undefined
       try {
         credentials = await SessionCredentials.createCredentials(this._serverPath, this._thingName, "iot-update-role");
@@ -546,62 +537,47 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return
       }
 
-      // https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_GetAuthorizationToken.html - look here if below command doesn't work, or the next command doesn't work!
-
       try {
+
+        console.log('downloading updates')
         await awaitableExec("export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose pull", {
           cwd: this._serverPath
         })
+        progress = 0.5;
+        if (job) {
+          let progressRequest = job.Progress(progress, 'downloaded updates');
+          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+        }
+
+        console.log('stopping applications')
+        await awaitableExec('docker-compose stop', {
+          cwd: this._serverPath
+        })
+        progress = 0.7;
+        if (job) {
+          let progressRequest = job.Progress(progress, 'stopped applications');
+          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+        }
+
+        console.log('starting applications after update')
+        await awaitableExec('docker-compose up -d', {
+          cwd: this._serverPath
+        })
+        progress = 0.9;
+        if (job) {
+          let progressRequest = job.Progress(progress, 'restarted applications');
+          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+        }
       } catch (error) {
-        console.error('error while downloading update', error)
-        reject('unable to login with credentials for update\n' + error);
+        console.error('error while exeuting update', error)
+        reject('unable to execute update\n' + error);
         return
-      }
-      // await awaitableExec("pkill chromium", {cwd: process.cwd()})
-
-      for (let index = 0; index < images.length; index++) {
-        const image = images[index];
-        try {
-
-          // await awaitableExec('docker-compose pull ' + image, {
-          //    cwd: this._serverPath
-          // })
-          progress += step;
-          if (job) {
-            let progressRequest = job.Progress(progress, 'pulled ' + image);
-            jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
-          }
-        } catch (error) {
-          console.error('error while pulling container ' + image, error)
-          reject('unable to pull software update\n' + error);
-        }
-
-        try {
-          await awaitableExec('docker-compose stop ' + image, {
-            cwd: this._serverPath
-          })
-          await awaitableExec('docker-compose up -d ' + image, {
-            cwd: this._serverPath
-          })
-          progress += step;
-          if (job) {
-            let progressRequest = job.Progress(progress, 'restarted ' + image);
-            jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
-          }
-
-        } catch (error) {
-          console.error('error while restarting container ' + image, error)
-          reject(error)
-        }
       }
       if (job) {
         const succeeded = job.Succeed();
         jobUpdate(job.jobId, succeeded, this._thingName, this._connection);
       }
-
-
-      // await awaitableExec("chromium-browser --noerrdialogs http://192.168.0.17:5005/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=TranslateUI --window-size=1024,768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0", {cwd: process.cwd()})
-
+      console.log('update successful')
       resolve('all images updated successfully');
     })
   }
