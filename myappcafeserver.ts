@@ -10,7 +10,6 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
-import { timeStamp } from 'console';
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
@@ -375,27 +374,35 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async handleJob(job: Job) {
     console.log('trying to handle a job', job)
     const operation = job.jobDocument.operation;
-    if (operation === 'update') {
-      return await this.updateHandler(job);
-    }
-    if (operation === 'http') {
-      return await this.httpHandler(job);
-    }
-    if (operation === 'shell') {
-      return await this.shellCommandHandler(job);
-    }
-    if (operation === 'start') {
-      return await this.startHandler(job);
-    }
-    if (operation === 'init') {
-      return await this.initHandler(job);
-    }
-    if (operation === 'shutdown') {
-      return await this.shutdownHandler(job)
+    try {
+      if (operation === 'update') {
+        return await this.updateHandler(job);
+      }
+      if (operation === 'http') {
+        return await this.httpHandler(job);
+      }
+      if (operation === 'shell') {
+        return await this.shellCommandHandler(job);
+      }
+      if (operation === 'start') {
+        return await this.startHandler(job);
+      }
+      if (operation === 'init') {
+        return await this.initHandler(job);
+      }
+      if (operation === 'shutdown') {
+        return await this.shutdownHandler(job)
+      }
+    } catch (error) {
+      console.error('job failed', job, error)
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail(error.message, "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
     }
 
     console.warn("unknown command sent to handler", job.jobDocument);
-    var fail = job.Fail("unknown operation " + operation, "AXXXX");
+    const fail = job.Fail("unknown operation " + operation, "AXXXX");
     jobUpdate(job.jobId, fail, this._thingName, this._connection);
   }
 
@@ -545,6 +552,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
+        reject(error.message);
       }
       progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
