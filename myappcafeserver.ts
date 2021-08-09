@@ -10,6 +10,7 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
+import { timeStamp } from 'console';
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
@@ -341,7 +342,17 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return this.stopContainers(this._containers);
   }
 
+  sleep(ms: number) {
+    new Promise(res => setTimeout(res, ms))
+  }
+
+
   async startBoxNow() {
+    if (this.state === ServerState.FatalError) await this.stop();
+    if (this.state === ServerState.closed) {
+      await this.start();
+      await sleep(30 * 1000);
+    }
     await axios.post(this._url + 'init/sanitize');
     await axios.post(this._url + 'init/initnow');
   }
