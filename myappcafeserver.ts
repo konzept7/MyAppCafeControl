@@ -10,7 +10,6 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
-import { timeStamp } from 'console';
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
