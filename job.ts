@@ -9,9 +9,12 @@ function baseJobTopic(thingName: string) {
 }
 
 const JOBTOPICS = {
+  GET_ACCEPTED: 'get/accepted',
+  GET: 'get',
   NOTIFY: 'notify-next',
   UPDATE: 'update',
-  NEXT: '$next/get/accepted'
+  NEXT: '$next/get/accepted',
+  QUEUED: '$next/get/queued'
 }
 
 // the document from s3, containing all the information necessary for the operation

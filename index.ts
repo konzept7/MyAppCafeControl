@@ -125,7 +125,42 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             if (!execution) return;
             const job: Job = Object.assign(new Job(), execution);
             console.log('received a new job', job);
-            program.handleJob(job);
+            try {
+               await program.handleJob(job);
+            } catch (error) {
+               console.error('program could not handle job', error)
+            }
+         }
+
+         const on_running_jobs = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+            const json = decoder.decode(payload);
+            console.log(`Running jobs received. topic:"${topic}"`);
+            const inProgressJobs = (JSON.parse(json)).inProgressJobs;
+            const inProgress: Array<Job> = inProgressJobs.map((j: any) => {
+               const job: Job = Object.assign(new Job(), j);
+               return job
+            })
+            console.log('received in progress jobs, handling one by one', inProgress);
+            for (let index = 0; index < inProgress.length; index++) {
+               const job = inProgress[index];
+               console.log('handling job in progress', job)
+               const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
+               await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
+               await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+            }
+            const queuedJobs = (JSON.parse(json)).queuedJobs;
+            const queued: Array<Job> = queuedJobs.map((j: any) => {
+               const job: Job = Object.assign(new Job(), j);
+               return job
+            })
+            console.log('received queued jobs', queued);
+            for (let index = 0; index < queued.length; index++) {
+               const job = queued[index];
+               console.log('handling queued job', job)
+               const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
+               await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
+               await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+            }
          }
 
          const on_shadow = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
@@ -143,9 +178,11 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             program.handleTunnel(tunnel);
          }
 
-         await connection.subscribe(baseJobTopic(thingName) + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
-         await connection.subscribe(baseJobTopic(thingName) + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
-
+         const jobTopic = baseJobTopic(thingName);
+         await connection.subscribe(jobTopic + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
+         await connection.subscribe(jobTopic + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
+         await connection.subscribe(jobTopic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_running_jobs)
+         connection.publish(jobTopic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
 
          const myShadowTopic = shadowTopic(thingName);
          await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
