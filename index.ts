@@ -10,7 +10,7 @@ import { access } from 'fs/promises';
 import { constants } from 'fs';
 
 import { baseJobTopic, Job, JOBTOPICS } from './job'
-import { shadowTopic, ShadowSubtopic } from './shadow'
+import { shadowTopic, ShadowSubtopic, ServerShadowState } from './shadow'
 import { sleep } from './common'
 import { ControllableProgram } from './controllableProgram';
 import { Tunnel, tunnelTopic } from './tunnel';
@@ -203,7 +203,7 @@ const connection = client.new_connection(config);
    // create server instance
 
    const serverUrl = "http://localhost:5002/api/"
-   const myappcafeserver = new Myappcafeserver(serverUrl, serverUrl + 'appstate', serverPath, thingName, connection);
+   const myappcafeserver = new Myappcafeserver(serverUrl, serverUrl + 'appstate', serverUrl + 'orderhub', serverPath, thingName, connection);
    try {
       await myappcafeserver.prepare();
    } catch (error) {
@@ -211,7 +211,10 @@ const connection = client.new_connection(config);
    }
    myappcafeserver.connect();
    myappcafeserver.on('change', (newState: ServerState) => {
-      // myShadow.setCurrentState(newState);
+      console.log('received state change from server, reporting shadow change')
+      const state = new ServerShadowState();
+      state.reported = newState;
+      myappcafeserver.shadow.setCurrentState(state);
    })
 
    while (true) {

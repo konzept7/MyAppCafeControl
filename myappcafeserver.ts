@@ -3,7 +3,7 @@ import EventEmitter from 'events';
 import axios from 'axios';
 import { mqtt } from 'aws-iot-device-sdk-v2';
 import { awaitableExec, sleep } from './common'
-import { Job, jobUpdate, StatusDetails } from './job'
+import { Job, jobUpdate, StatusDetails, JobOption } from './job'
 import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
 import { SessionCredentials } from './sessionCredentials';
 import { Tunnel } from './tunnel'
@@ -26,10 +26,14 @@ export enum ServerState {
   Restarting = "Restarting",
   FatalError = "FatalError"
 }
+
+
 class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _retryTime = 24 * 60 * 60 * 1000;
   private _stateConnection!: any;
-  private _hub!: string;
+  private _orderConnection!: any;
+  private _stateHubUrl!: string;
+  private _orderHubUrl!: string;
   private _state!: ServerState;
   private _url!: string;
   private _serverPath!: string; // "/home/pi/srv/MyAppCafeServer";
@@ -40,6 +44,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   public images: Array<Dockerode.ImageInfo>;
   private customMyappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
   private myappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue", "redis"];
+  private _isBlockingOrders = false;
+  private _currentOrders = new Array<any>();
 
   get state() {
     return this._state;
@@ -50,7 +56,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     this._state = value;
 
-    if (this.isReadyForUpdate()) {
+    if (this.isNotOperating) {
       this.emit('readyForUpdate');
     }
 
@@ -61,12 +67,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this.emit('change', value);
   }
 
-  constructor(url: string, hub: string, path: string, thingName: string, connection: mqtt.MqttClientConnection) {
+  constructor(url: string, stateHubUrl: string, orderHubUrl: string, path: string, thingName: string, connection: mqtt.MqttClientConnection) {
     super();
     this.state = ServerState.closed
     this._url = url;
     this._serverPath = path;
-    this._hub = hub;
+    this._stateHubUrl = stateHubUrl;
+    this._orderHubUrl = orderHubUrl;
     this._thingName = thingName;
     this._connection = connection;
     const initialState = new ServerShadowState();
@@ -76,7 +83,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this.images = []
     this.shadow = new ServerShadow(connection, initialState)
     this._stateConnection = new signalR.HubConnectionBuilder()
-      .withUrl(this._hub)
+      .withUrl(this._stateHubUrl)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: (retryContext: any) => {
           this.state = ServerState.closed;
@@ -100,18 +107,94 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     this._stateConnection.onclose((error: any) => {
       console.error("server disconnected", error);
+      this._isBlockingOrders = false;
       this.state = ServerState.closed;
     });
 
     this._stateConnection.onreconnected((connectionId: string) => {
       console.log("reconnected with connectionId " + connectionId);
+      if (this._isBlockingOrders) console.warn('reconnected, but new orders are still blocked');
     });
 
     this._stateConnection.on("current", (args: ServerState) => {
+      // after successful init, we won't be blocking orders
+      if (args === ServerState.NeverInitialized || args === ServerState.Okay && (this.state === ServerState.Starting || this.state === ServerState.Restarting || this.state === ServerState.NeverInitialized)) {
+        this._isBlockingOrders = false;
+        this.emit('allOrdersFinished');
+      }
       this.state = args
     });
+
+    this._stateConnection.on("orders", (args: string) => {
+      if (args === 'blocked') {
+        this._isBlockingOrders = true;
+      }
+      if (args === 'unblocked') {
+        this._isBlockingOrders = false;
+      }
+      if (args === 'allFinished') {
+        this._currentOrders = new Array<any>();
+        this.emit('allOrdersFinished');
+      }
+    });
+
+    this._orderConnection = new signalR.HubConnectionBuilder()
+      .withUrl(this._orderHubUrl)
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: (retryContext: any) => {
+          this.state = ServerState.closed;
+          if (retryContext.elapsedMilliseconds < 60 * 1000) {
+            // If we've been reconnecting for less than 60 seconds so far,
+            // wait 5 seconds before the next reconnect attempt.
+            return 5 * 1000;
+          } else if (retryContext.elapsedMilliseconds < this._retryTime) {
+            // If we've been reconnecting for less than 30 minutes so far,
+            // wait 5 seconds before the next reconnect attempt.
+            return 30 * 1000;
+          } else {
+            // If we've been reconnecting for more than 60 seconds so far, stop reconnecting.
+            this.state = ServerState.closed;
+            return null;
+          }
+        },
+      })
+      .configureLogging("error")
+      .build();
+
+    this._orderConnection.on("UpdateOrder", (args: any) => {
+      var order = JSON.parse(args);
+
+      var updatedCurrentOrderIndex = this._currentOrders.findIndex(o => o.OrderId === order.OrderId);
+      var updatedQueuedOrderIndex = this._currentOrders.findIndex(o => o.OrderId === order.OrderId);
+
+      // order is not yet in list
+      if (updatedCurrentOrderIndex === -1 && updatedQueuedOrderIndex === -1 && order.status !== "Completed" && order.status !== "PickedUp") {
+        this._currentOrders.push(order)
+        return;
+      }
+
+      // order is finished
+      if ((order.status === "PickedUp") || order.status === "Completed" && updatedCurrentOrderIndex !== -1 && order.TargetGate.State === "Available") {
+        this._currentOrders.splice(updatedCurrentOrderIndex, 1);
+        if (this._currentOrders.length === 0) {
+          this.emit('allOrdersFinished');
+        }
+        return;
+      }
+
+      if (updatedCurrentOrderIndex !== -1) {
+        this._currentOrders.splice(updatedCurrentOrderIndex, 1, order);
+      }
+    });
+
   }
 
+  get isOperatingNormally(): boolean {
+    return this.state === ServerState.Okay || this.state === ServerState.Pausing || this.state === ServerState.Paused || this.state === ServerState.Maintenance;
+  }
+  get isStarting(): boolean {
+    return this.state === ServerState.Starting || this.state === ServerState.Restarting;
+  }
 
 
   async prepare(): Promise<boolean> {
@@ -199,7 +282,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     })
   }
 
-  isReadyForUpdate(): boolean {
+  get isNotOperating(): boolean {
     return this.state === ServerState.closed || this.state === ServerState.NeverInitialized || this.state === ServerState.FatalError;
   }
 
@@ -275,11 +358,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     if (operation === 'shell') {
       return await this.shellCommandHandler(job);
     }
-    if (operation === 'start-containers') {
-      return await this.startContainersHandler(job);
+    if (operation === 'start') {
+      return await this.startHandler(job);
     }
-    if (operation === 'clean-start') {
-      return await this.cleanStartHandler(job)
+    if (operation === 'init') {
+      return await this.initHandler(job);
     }
     if (operation === 'shutdown') {
       return await this.shutdownHandler(job)
@@ -290,6 +373,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     jobUpdate(job.jobId, fail, this._thingName, this._connection);
   }
 
+  private async waitForOrdersToFinish(timeoutInMinutes: number | undefined): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      if (this.isNotOperating || this._currentOrders.length === 0) return resolve(true);
+      await this.toggleBlockOrders(true);
+      const timeout = (timeoutInMinutes || 10) * 1000 * 60;
+      setTimeout(() => {
+        resolve(false);
+        return;
+      }, timeout);
+      this.once('allOrdersFinished', () => resolve(true));
+    })
+  }
 
   async shutdownGracefully(inSeconds: number) {
     if (!inSeconds) inSeconds = 10;
@@ -331,6 +426,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   // if possible, please use images in that order
   // all frontend applications reload when myappcafeserver is restarted,
   // that way we ensure that the browser reloads (and gets the updated version of our frontends)
+
   private _containers = ['redis', 'config-provider', 'status-frontend', 'display-queue', 'terminal', 'myappcafeserver'];
   async updateHandler(job: Job) {
 
@@ -353,43 +449,36 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
-
-  // pulls the current version of itself
-  // async function pullEnvHandler(job: Job) {
-
+  // async cleanStartHandler(job: Job) {
+  //   if (job.status !== 'QUEUED') {
+  //     return;
+  //   }
+  //   try {
+  //     jobUpdate(job.jobId, job.Progress(0.2, "registered"), this._thingName, this._connection);
+  //     await this.stop();
+  //     jobUpdate(job.jobId, job.Progress(0.4, "stopped containers"), this._thingName, this._connection);
+  //     await this.start();
+  //     jobUpdate(job.jobId, job.Progress(0.6, "started containers"), this._thingName, this._connection);
+  //     await sleep(15 * 1000);
+  //     jobUpdate(job.jobId, job.Progress(0.8, "waited for startup"), this._thingName, this._connection);
+  //     await this.startBoxNow();
+  //     if (this.state === ServerState.Okay) {
+  //       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+  //     } else {
+  //       const startTimer = setTimeout(() => {
+  //         console.error('server was not started after 15 minutes')
+  //         jobUpdate(job.jobId, job.Fail('not started after 15 minutes', "AXXXX"), this._thingName, this._connection);
+  //       }, 15 * 60 * 1000);
+  //       this.once('okay', () => {
+  //         clearTimeout(startTimer);
+  //         jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+  //       })
+  //     }
+  //   } catch (error) {
+  //     console.error('error while starting box')
+  //     jobUpdate(job.jobId, job.Fail(JSON.stringify(error), "AXXXX"), this._thingName, this._connection);
+  //   }
   // }
-
-  // 
-  async cleanStartHandler(job: Job) {
-    if (job.status !== 'QUEUED') {
-      return;
-    }
-    try {
-      jobUpdate(job.jobId, job.Progress(0.2, "registered"), this._thingName, this._connection);
-      await this.stop();
-      jobUpdate(job.jobId, job.Progress(0.4, "stopped containers"), this._thingName, this._connection);
-      await this.start();
-      jobUpdate(job.jobId, job.Progress(0.6, "started containers"), this._thingName, this._connection);
-      await sleep(15 * 1000);
-      jobUpdate(job.jobId, job.Progress(0.8, "waited for startup"), this._thingName, this._connection);
-      await this.startBoxNow();
-      if (this.state === ServerState.Okay) {
-        jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
-      } else {
-        const startTimer = setTimeout(() => {
-          console.error('server was not started after 15 minutes')
-          jobUpdate(job.jobId, job.Fail('not started after 15 minutes', "AXXXX"), this._thingName, this._connection);
-        }, 15 * 60 * 1000);
-        this.once('okay', () => {
-          clearTimeout(startTimer);
-          jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
-        })
-      }
-    } catch (error) {
-      console.error('error while starting box')
-      jobUpdate(job.jobId, job.Fail(JSON.stringify(error), "AXXXX"), this._thingName, this._connection);
-    }
-  }
 
   async shutdownHandler(job: Job) {
     if (job.status !== 'QUEUED') return;
@@ -414,10 +503,38 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
+  async initHandler(job: Job) {
+    const option = job.jobDocument.option || JobOption.soft;
+    return new Promise(async (resolve, reject) => {
+      if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
+        const success = job.Succeed();
+        jobUpdate(job.jobId, success, this._thingName, this._connection);
+        resolve(true)
+        return;
+      }
+      await this.waitForOrdersToFinish(10);
+      let progress = job.Progress(0.3, "all orders finished");
+      jobUpdate(job.jobId, progress, this._thingName, this._connection);
+      await this.startBoxNow();
+      progress = job.Progress(0.5, "start command sent");
+      jobUpdate(job.jobId, progress, this._thingName, this._connection);
+      const timeout = setTimeout(() => {
+        console.warn('could not start box after 20 minutes, box in state: ' + this.state)
+        reject();
+      }, 20 * 1000);
+      this.once('okay', () => {
+        clearTimeout(timeout);
+        const success = job.Succeed();
+        jobUpdate(job.jobId, success, this._thingName, this._connection);
+        resolve(true);
+      })
+    })
+  }
+
   async update(job: Job): Promise<Job> {
     return new Promise(async (resolve, reject) => {
       try {
-        if (this.isReadyForUpdate() || job.jobDocument.isForced) {
+        if (this.isNotOperating || job.jobDocument.isForced) {
           await this.executeUpdate(job);
           resolve(job)
         } else {
@@ -449,7 +566,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
       try {
-        await awaitableExec(job.jobDocument.command, job.jobDocument.options)
+        await awaitableExec(job.jobDocument.command, { cwd: this._serverPath })
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (error) {
@@ -465,12 +582,34 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   }
 
-  async startContainersHandler(job: Job) {
+  private async toggleBlockOrders(block: boolean): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      resolve(block);
+    })
+  }
+
+  async startHandler(job: Job) {
     if (job.status === 'QUEUED') {
 
-      const progress = job.Progress(0.01, 'command registered, spinning up containers')
+      const option = job.jobDocument.option || JobOption.soft;
+      let progress = job.Progress(0.01, 'command registered, spinning up containers')
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
       try {
+
+
+        if (option === JobOption.hard) {
+          progress = job.Progress(0.2, 'waiting for orders to be finished')
+          jobUpdate(job.jobId, progress, this._thingName, this._connection);
+          await this.waitForOrdersToFinish(10);
+          progress = job.Progress(0.6, 'orders are finished')
+          jobUpdate(job.jobId, progress, this._thingName, this._connection);
+        }
+        if (option !== JobOption.soft) {
+          await this.stop();
+          progress = job.Progress(0.8, 'stopped application')
+          jobUpdate(job.jobId, progress, this._thingName, this._connection);
+        }
+
         const images = job.jobDocument.images ?? this._containers;
         await this.startContainers(images)
         const success = job.Succeed();
@@ -483,6 +622,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
+  // async stopContainers(): Promise<number> {
+  //   console.log('stopping applications')
+  //   return await awaitableExec('docker-compose stop', {
+  //     cwd: this._serverPath
+  //   })
+  // }
 
   async handleTunnel(tunnel: Tunnel) {
     console.log('got request to open a tunnel', tunnel)
@@ -549,10 +694,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 
-        console.log('stopping applications')
-        await awaitableExec('docker-compose stop', {
-          cwd: this._serverPath
-        })
+        await this.stopContainers(undefined);
         progress = 0.7;
         if (job) {
           let progressRequest = job.Progress(progress, 'stopped applications');
@@ -581,7 +723,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       resolve('all images updated successfully');
     })
   }
-
 }
 
 export { Myappcafeserver }

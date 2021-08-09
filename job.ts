@@ -21,7 +21,8 @@ class JobDocument {
   images: Array<string> | undefined;
   isForced: boolean | undefined;
   command: string | undefined;
-  options: any | undefined;
+  option: JobOption | undefined;
+  parameters: Map<string, string> | undefined;
   url: string | undefined;
   body: string | undefined;
   httpMethod: string | undefined;
@@ -84,4 +85,13 @@ function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, con
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
 }
 
-export { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS, jobUpdate, StatusDetails }
+enum JobOption {
+  soft = "soft",
+  hard = "hard",
+  forced = "forced",
+  unpause = "unpause",
+  block = "block",
+  unblock = "unblock",
+}
+
+export { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS, jobUpdate, StatusDetails, JobOption }

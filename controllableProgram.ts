@@ -16,6 +16,8 @@ interface ControllableProgram {
   state: string;
   shadow: IShadow;
 
+  isNotOperating: boolean;
+
   connect(): Promise<any>;
   disconnect(): Promise<any>;
   prepare(): Promise<any>;
@@ -24,7 +26,6 @@ interface ControllableProgram {
   stop(isForced: boolean): Promise<any>;
   shutdownGracefully(inSeconds: number): Promise<any>;
 
-  isReadyForUpdate(): boolean;
   update(job: Job): Promise<any>;
 
   handleJob(job: Job): Promise<any>

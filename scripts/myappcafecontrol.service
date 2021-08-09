@@ -3,7 +3,7 @@
     After=network.target
     
     [Service]
-    ExecStart=/usr/local/bin/node dist/index.js
+    ExecStart=/usr/bin/node dist/index.js
     WorkingDirectory=/home/pi/srv/MyAppCafeControl/
     StandardOutput=file:/home/pi/srv/MyAppCafeControl/log1.txt
     StandardError=file:/home/pi/srv/MyAppCafeControl/log2.txt
