@@ -406,6 +406,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.shutdownHandler(job)
       }
 
+
+
       if (operation === 'pause') {
         return await this.pauseHandler(job)
       }
@@ -536,6 +538,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       console.info('shutdown job received', job)
       jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
       console.info('current state of server application', this._state)
+
+      const option = job.jobDocument?.option ?? JobOption.soft;
+      if (option === JobOption.soft) {
+        await this.waitForOrdersToFinish(10);
+      }
+      jobUpdate(job.jobId, job.Progress(0.5, "all orders finished"), this._thingName, this._connection);
+
       if (this._state === ServerState.Okay) {
         console.log('pausing application before shutting it down');
         try {
@@ -546,7 +555,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
       }
       jobUpdate(job.jobId, job.Progress(0.75, "if application was running, it is now set to pause"), this._thingName, this._connection);
+
+      if (option === JobOption.forced && this.state !== ServerState.closed) {
+        console.log('shutdown is forced, so we will delete open orders');
+        try {
+          await axios.delete(this._url + "order");
+        } catch (error) {
+          console.warn('it was not possible to delete running orders, we will still continue', error)
+        }
+      }
+
       await this.shutdownGracefully(20);
+      await this.stop();
       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
     } catch (error) {
       console.error('error shutting down application')
@@ -557,21 +577,25 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     const option = job.jobDocument.option || JobOption.soft;
     return new Promise(async (resolve, reject) => {
       if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
+        if (this._isBlockingOrders) await this.toggleBlockOrders(false);
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
         resolve(true)
         return;
       }
-      await this.waitForOrdersToFinish(10);
-      let progress = job.Progress(0.3, "all orders finished");
-      jobUpdate(job.jobId, progress, this._thingName, this._connection);
+      if (option === JobOption.hard) {
+        await this.waitForOrdersToFinish(10);
+        let progress = job.Progress(0.3, "all orders finished");
+        jobUpdate(job.jobId, progress, this._thingName, this._connection);
+      }
+      await this.shutdownGracefully(10);
       try {
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
         reject(error.message);
       }
-      progress = job.Progress(0.5, "start command sent");
+      let progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
       const timeout = setTimeout(() => {
         console.warn('could not start box after 20 minutes, box in state: ' + this.state)
@@ -590,6 +614,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return new Promise(async (resolve, reject) => {
 
       if (job.jobDocument.option === JobOption.soft || job.jobDocument.option === JobOption.hard) {
+
+        console.log('got request to pause execution', job)
 
         if (this.state !== ServerState.Okay && this.state !== ServerState.Paused && this.state !== ServerState.Pausing) {
           const fail = job.Fail('application is not in a state where pause is allowed, current state: ' + this.state, "AXXXX");
@@ -637,6 +663,31 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
         }
 
+      } else if (job.jobDocument.option === 'unpause') {
+        console.log('got request to unpause application', job)
+
+        if (this.state !== 'Paused') {
+          const fail = job.Fail('unpause was requested, but server is in state ' + this.state, "AXXXX");
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          reject('unpause was requested, but server is in state ' + this.state)
+          return
+        }
+        try {
+          await axios.post(this._url + 'devices/unpause', null, { timeout: 30 * 1000 });
+          await this.toggleBlockOrders(false);
+          let success = job.Succeed();
+          jobUpdate(job.jobId, success, this._thingName, this._connection);
+          resolve(true);
+        } catch (error) {
+          console.error('error while waiting for application to be unpaused', error)
+          const fail = job.Fail('error while waiting for application to be unpaused\n' + error.message, "AXXXX");
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          reject()
+          return
+        }
+
+      } else {
+        throw new Error('got pause operation job with an unknown option')
       }
     })
   }
@@ -693,9 +744,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      resolve(block);
-    })
+    const url = this._url + "block"
+    try {
+      if (block) {
+        await axios.post(url);
+        return true;
+      } else {
+        await axios.delete(url);
+        return true;
+      }
+    } catch (error) {
+      console.error('error blocking/unblocking orders', error);
+      return false;
+    }
   }
 
   async startHandler(job: Job) {
@@ -732,13 +793,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
-  // async stopContainers(): Promise<number> {
-  //   console.log('stopping applications')
-  //   return await awaitableExec('docker-compose stop', {
-  //     cwd: this._serverPath
-  //   })
-  // }
-
   async handleTunnel(tunnel: Tunnel) {
     console.log('got request to open a tunnel', tunnel)
     return new Promise((resolve, reject) => {
@@ -749,7 +803,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         console.error('error opening tunnel', error)
         reject('error opening tunnel\n' + error)
       }
-
     })
   }
 
