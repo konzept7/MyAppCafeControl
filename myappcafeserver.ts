@@ -10,6 +10,7 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
+import { timeStamp } from 'console';
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
@@ -346,14 +347,29 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
 
-  async startBoxNow() {
-    if (this.state === ServerState.FatalError) await this.stop();
-    if (this.state === ServerState.closed) {
-      await this.start();
-      await sleep(30 * 1000);
-    }
-    await axios.post(this._url + 'init/sanitize');
-    await axios.post(this._url + 'init/initnow');
+  async startBoxNow(): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      console.log('got request to start box, current state: ' + this.state)
+      if (this.state === ServerState.FatalError) {
+        console.log('server is in fatal error, shutting down')
+        await this.shutdownGracefully(10);
+        await sleep(10 * 1000);
+      }
+      if (this.state === ServerState.closed) {
+        console.log('server is currently shut down, starting containers');
+        await this.start();
+        await sleep(30 * 1000);
+      }
+      try {
+        await axios.post(this._url + 'init/sanitize');
+        await axios.post(this._url + 'init/initnow');
+        this.once('okay', () => resolve(true));
+      } catch (error) {
+        console.error('error starting box', error)
+        reject(error.message)
+      }
+    })
+
   }
 
   async handleJob(job: Job) {
@@ -525,7 +541,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       await this.waitForOrdersToFinish(10);
       let progress = job.Progress(0.3, "all orders finished");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
-      await this.startBoxNow();
+      try {
+        await this.startBoxNow();
+      } catch (error) {
+        console.error('error when initializing box', error)
+      }
       progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
       const timeout = setTimeout(() => {
