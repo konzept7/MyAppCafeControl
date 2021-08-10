@@ -367,8 +367,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
         console.log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
-        await axios.post(this._url + 'init/initnow');
-        console.log('init commands sent, waiting for server to be in state okay')
         this.once('okay', () => {
           console.log('server seems to be okay after init');
           resolve(true)
@@ -377,6 +375,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           console.warn('server is error after sending init command')
           reject('server is in fatal error state')
         })
+        await axios.post(this._url + 'init/initnow');
+        console.log('init commands sent, waiting for server to be in state okay')
       } catch (error) {
         console.error('error starting box', error)
         reject(error)
@@ -609,7 +609,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.sleep(60 * 1000);
       }
       try {
-
+        const timeout = setTimeout(() => {
+          console.warn('could not start box after 20 minutes, box in state: ' + this.state)
+          reject();
+        }, 20 * 1000);
+        this.once('okay', () => {
+          clearTimeout(timeout);
+          const success = job.Succeed();
+          jobUpdate(job.jobId, success, this._thingName, this._connection);
+          resolve(true);
+        })
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
@@ -617,16 +626,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       let progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
-      const timeout = setTimeout(() => {
-        console.warn('could not start box after 20 minutes, box in state: ' + this.state)
-        reject();
-      }, 20 * 1000);
-      this.once('okay', () => {
-        clearTimeout(timeout);
-        const success = job.Succeed();
-        jobUpdate(job.jobId, success, this._thingName, this._connection);
-        resolve(true);
-      })
     })
   }
 
