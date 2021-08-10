@@ -203,6 +203,13 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
 
     # TODO: check:
     (crontab -l ; echo "@reboot /srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh")| crontab -
+
+    # for display-only devices set up quiet/invisible boot
+    if [[ "$installationPackage" == "display" ]]; then
+        echo 'disable_splash=1' | sudo tee -a /boot/config.txt
+        sudo sed /boot/cmdline.txt -i -e "s/console=tty1/console=tty3/"
+        sudo sed /boot/cmdline.txt -i -e "s/rootwait/rootwait splash quiet plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0/"
+    fi
 fi
 
 # install and set up camera

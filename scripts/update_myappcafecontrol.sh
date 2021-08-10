@@ -10,7 +10,7 @@ echo
 
 SCRIPTFILE=/etc/systemd/system/myappcafecontrol.service
 
-# check if service script exists, if not create id
+# check if service script exists, if not create it
 if [[ ! -f "$SCRIPTFILE" ]]; then
     # create script file
     cd ~
@@ -20,8 +20,8 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     echo 'After=network.target' | sudo tee -a myappcafecontrol.service
     echo '' | sudo tee -a myappcafecontrol.service
     echo '[Service]' | sudo tee -a myappcafecontrol.service
-    echo 'ExecStart=node /srv/MyAppCafeControl/dist/index.js' | sudo tee -a myappcafecontrol.service
-    echo 'WorkingDirectory=/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
+    echo 'ExecStart=node ~/srv/MyAppCafeControl/dist/index.js' | sudo tee -a myappcafecontrol.service
+    echo 'WorkingDirectory=~/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
     echo 'StandardOutput=inherit' | sudo tee -a myappcafecontrol.service
     echo 'StandardError=inherit' | sudo tee -a myappcafecontrol.service
     echo 'Restart=always' | sudo tee -a myappcafecontrol.service
@@ -35,6 +35,11 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     sudo systemctl daemon-reload
     sudo systemctl enable myappcafecontrol.service
     sudo systemctl start myappcafecontrol.service
+
+    # install script in auto-start (first remove any existing entries, then add to end of file)
+    sudo sed /etc/rc.local -i -e "s/^sudo \/home\/pi\/srv\/MyAppCafeControl\/scripts\/update_myappcafecontrol.sh//"
+    sudo sed /etc/rc.local -i -e "s/^exit 0/sudo \/home\/pi\/srv\/MyAppCafeControl\/scripts\/update_myappcafecontrol.sh\nexit 0/"
+    sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
 fi
 
 
@@ -48,4 +53,3 @@ npm install
 npm run build
 # restart service after build
 sudo systemctl start myappcafecontrol.service
-
