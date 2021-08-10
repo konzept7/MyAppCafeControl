@@ -130,7 +130,7 @@ echo
 echo "Installing git..."
 sudo apt install -y git
 echo "Installing node..."
-cd ~
+cd /home/pi/
 curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
 sudo apt install -y nodejs
 
@@ -177,7 +177,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     echo 'xset s off' > /home/pi/.Xsession
     echo 'xset -dpms' >> /home/pi/.Xsession
     echo 'xset s noblank' >> /home/pi/.Xsession
-    echo 'sed -i '"'"'s/"exited_cleanly": false/"exited_cleanly": true/'"'"' ~/.config/chromium/Default/Preferences' >> /home/pi/.Xsession
+    echo 'sed -i '"'"'s/"exited_cleanly": false/"exited_cleanly": true/'"'"' /home/pi/.config/chromium/Default/Preferences' >> /home/pi/.Xsession
     echo 'chromium-browser --noerrdialogs http://'$serverip':'$serverport'/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size='$resolution' --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0' >> /home/pi/.Xsession
 
     sudo chown pi:pi /home/pi/.Xsession

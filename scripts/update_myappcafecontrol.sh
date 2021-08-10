@@ -13,15 +13,15 @@ SCRIPTFILE=/etc/systemd/system/myappcafecontrol.service
 # check if service script exists, if not create it
 if [[ ! -f "$SCRIPTFILE" ]]; then
     # create script file
-    cd ~
+    cd /home/pi/
     sudo rm myappcafecontrol.service
     echo '[Unit]' | sudo tee -a myappcafecontrol.service
     echo 'Description=MyAppCafeControl' | sudo tee -a myappcafecontrol.service
     echo 'After=network.target' | sudo tee -a myappcafecontrol.service
     echo '' | sudo tee -a myappcafecontrol.service
     echo '[Service]' | sudo tee -a myappcafecontrol.service
-    echo 'ExecStart=node ~/srv/MyAppCafeControl/dist/index.js' | sudo tee -a myappcafecontrol.service
-    echo 'WorkingDirectory=~/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
+    echo 'ExecStart=node /home/pi/srv/MyAppCafeControl/dist/index.js' | sudo tee -a myappcafecontrol.service
+    echo 'WorkingDirectory=/home/pi/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
     echo 'StandardOutput=inherit' | sudo tee -a myappcafecontrol.service
     echo 'StandardError=inherit' | sudo tee -a myappcafecontrol.service
     echo 'Restart=always' | sudo tee -a myappcafecontrol.service
