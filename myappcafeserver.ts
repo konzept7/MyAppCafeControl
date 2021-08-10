@@ -379,7 +379,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         })
       } catch (error) {
         console.error('error starting box', error)
-        reject(error.message)
+        reject(error)
       }
     })
 
@@ -431,7 +431,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     } catch (error) {
       console.error('job failed', job, error)
       if (job.status !== 'FAILED') {
-        const fail = job.Fail(error.message, "AXXXX");
+        const fail = job.Fail(error, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -613,7 +613,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
-        reject(error.message);
+        reject(error);
       }
       let progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
@@ -676,7 +676,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
           } catch (error) {
             console.error('error while waiting for application to be paused', error)
-            const fail = job.Fail('error while waiting for application to be paused\n' + error.message, "AXXXX");
+            const fail = job.Fail('error while waiting for application to be paused\n' + error, "AXXXX");
             jobUpdate(job.jobId, fail, this._thingName, this._connection);
             reject()
             return
@@ -700,7 +700,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           resolve(true);
         } catch (error) {
           console.error('error while waiting for application to be unpaused', error)
-          const fail = job.Fail('error while waiting for application to be unpaused\n' + error.message, "AXXXX");
+          const fail = job.Fail('error while waiting for application to be unpaused\n' + error, "AXXXX");
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           reject()
           return
