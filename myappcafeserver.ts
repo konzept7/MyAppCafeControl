@@ -60,6 +60,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       this.emit('readyForUpdate');
     }
 
+    if (value === ServerState.FatalError) {
+      this.emit('fatalError')
+    }
+
     if (value === ServerState.Okay) {
       this.emit('okay');
     }
@@ -354,15 +358,25 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.shutdownGracefully(10);
         await sleep(10 * 1000);
       }
-      if (this.state === ServerState.closed) {
-        console.log('server is currently shut down, starting containers');
-        await this.start();
-        await sleep(30 * 1000);
-      }
       try {
+        if (this.state === ServerState.closed) {
+          console.log('server is currently shut down, starting containers');
+          await this.start();
+          console.log('started server, now waiting 30 seconds');
+          await sleep(30 * 1000);
+        }
+        console.log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
         await axios.post(this._url + 'init/initnow');
-        this.once('okay', () => resolve(true));
+        console.log('init commands sent, waiting for server to be in state okay')
+        this.once('okay', () => {
+          console.log('server seems to be okay after init');
+          resolve(true)
+        });
+        this.once('fatalError', () => {
+          console.warn('server is error after sending init command')
+          reject('server is in fatal error state')
+        })
       } catch (error) {
         console.error('error starting box', error)
         reject(error.message)
@@ -406,8 +420,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.shutdownHandler(job)
       }
 
-
-
       if (operation === 'pause') {
         return await this.pauseHandler(job)
       }
@@ -431,10 +443,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       await this.toggleBlockOrders(true);
       const timeout = (timeoutInMinutes || 10) * 1000 * 60;
       setTimeout(() => {
+        console.warn('timed out while waiting for orders to finish')
         resolve(false);
         return;
       }, timeout);
-      this.once('allOrdersFinished', () => resolve(true));
+      this.once('allOrdersFinished', () => {
+        console.info('got message that all orders are finished')
+        resolve(true)
+      });
     })
   }
 
@@ -588,8 +604,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         let progress = job.Progress(0.3, "all orders finished");
         jobUpdate(job.jobId, progress, this._thingName, this._connection);
       }
-      await this.shutdownGracefully(10);
+      if (option !== JobOption.soft) {
+        await this.shutdownGracefully(10);
+        await this.sleep(60 * 1000);
+      }
       try {
+
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
@@ -663,7 +683,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
         }
 
-      } else if (job.jobDocument.option === 'unpause') {
+      } else if (job.jobDocument.option === JobOption.unpause) {
         console.log('got request to unpause application', job)
 
         if (this.state !== 'Paused') {
@@ -744,6 +764,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
+    console.log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
     const url = this._url + "block"
     try {
       if (block) {
