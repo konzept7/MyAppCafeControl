@@ -214,7 +214,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   get composeFile(): string { return "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? " --file docker-compose.x86.yml" : "" }
   get customMyappcafeImages(): Array<string> {
-    let arr = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
+    let arr = ["status", "myappcafeserver", "config", "terminal", "display"]
     arr = arr.map(e => "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? e : e);
     return arr;
   }
@@ -250,19 +250,21 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         };
 
         const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
+        console.log('all current image tags', allTags)
         if (this.myappcafeImages.every(name => allTags.some(tag => tag.includes(name)))) {
           console.log('images for every needed container found!', this.myappcafeImages)
         } else {
           console.warn('it was not possible to find every container needed for myappcafe');
         }
 
-        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")) ?? false));
+        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
         const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
+        console.log('all custom image tags', allCustomTags)
         if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
           console.log('images for every custom container found!')
         }
         else {
-          console.warn('not all images found! current images:', this.images);
+          console.warn('not all images found! current images:', this.customMyappcafeImages, this.images);
           console.warn('we\'ll try to build all images with docker-compose')
           try {
             await this.executeUpdate(undefined);
@@ -356,10 +358,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async stopContainers(imageNames: Array<string> | undefined) {
-    if (!imageNames) imageNames = []
     const infos = await docker.listContainers();
     for await (const info of infos) {
-      if (!info.Names.some(n => this.myappcafeImages.some(i => i.includes(n)))) continue;
+      if (!info.Names.some(n => this._containers.some(i => i.includes(n)))) continue;
       const container = docker.getContainer(info.Id);
       await container.stop();
     }
