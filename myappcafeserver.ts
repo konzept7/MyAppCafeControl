@@ -265,7 +265,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           console.warn('not all images found! current images:', this.images);
           console.warn('we\'ll try to build all images with docker-compose')
           try {
-            //await this.executeUpdate(undefined);
+            await this.executeUpdate(undefined);
           } catch (error) {
             console.error('error executing update', error);
             reject('error executing update\n' + error?.message);
