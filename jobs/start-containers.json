@@ -1,3 +1,4 @@
 {
-  "operation": "start-containers",
-  "images": ["redis", "config-provider", "status-frontend", "display-queue", "terminal", "myappcafeserver"]}
+  "operation": "start",
+  "option": "soft"
+}

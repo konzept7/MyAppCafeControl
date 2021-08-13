@@ -48,8 +48,10 @@ class Job {
   statusDetails: StatusDetails | undefined;
   public Progress(progress: number | undefined, step: string | undefined): JobRequest {
     console.log('progressing job with id ' + this.jobId)
+    if (step) console.log('job is progressed with step', step)
     this.status = 'IN_PROGRESS';
     if (progress) {
+      console.log('progress', progress)
       this.statusDetails = new StatusDetails();
       this.statusDetails.progress = progress;
       this.statusDetails.currentStep = step;
@@ -64,7 +66,7 @@ class Job {
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
-    console.log('failing job with id ' + this.jobId)
+    console.log('failing job with id ' + this.jobId, reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.message = reason;

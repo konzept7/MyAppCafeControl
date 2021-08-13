@@ -827,7 +827,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       try {
 
 
-        if (option === JobOption.hard) {
+        if (option === JobOption.soft) {
           progress = job.Progress(0.2, 'waiting for orders to be finished')
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
           await this.waitForOrdersToFinish(10);
