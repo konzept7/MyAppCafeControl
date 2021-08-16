@@ -70,30 +70,35 @@ fi
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "display" ]]; then
     if [[ "$resolution" == "" ]]; then
         echo "  <Resolution> needs to be set, when installing server or display-devices!"
+        exit 0
     fi
     if [[ "$serverip" == "" ]]; then
         echo "  <ServerIP> needs to be set, when installing server or display-devices!"
+        exit 0
     fi
     if [[ "$serverport" == "" ]]; then
         echo "  <ServerPort> needs to be set, when installing server or display-devices!"
+        exit 0
     fi
-    exit 0
 fi
 
 if [[ "$installationPackage" == "camera" ]]; then
     if [[ "$streamname" == "" ]]; then
         echo "  <StreamName> needs to be set, when installing camera!"
+        exit 0
     fi
     if [[ "$awsaccess" == "" ]]; then
         echo "  <AWS Access Key> needs to be set, when installing camera!"
+        exit 0
     fi
     if [[ "$awssecret" == "" ]]; then
         echo "  <AWS Secret Key> needs to be set, when installing camera!"
+        exit 0
     fi
     if [[ "$awsregion" == "" ]]; then
         echo "  <AWS Region> needs to be set, when installing camera!"
+        exit 0
     fi
-    exit 0
 fi
 
 
@@ -130,7 +135,7 @@ echo
 echo "Installing git..."
 sudo apt install -y git
 echo "Installing node..."
-cd ~
+cd /home/pi/
 curl -sL https://deb.nodesource.com/setup_14.x | sudo bash -
 sudo apt install -y nodejs
 
@@ -177,7 +182,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     echo 'xset s off' > /home/pi/.Xsession
     echo 'xset -dpms' >> /home/pi/.Xsession
     echo 'xset s noblank' >> /home/pi/.Xsession
-    echo 'sed -i '"'"'s/"exited_cleanly": false/"exited_cleanly": true/'"'"' ~/.config/chromium/Default/Preferences' >> /home/pi/.Xsession
+    echo 'sed -i '"'"'s/"exited_cleanly": false/"exited_cleanly": true/'"'"' /home/pi/.config/chromium/Default/Preferences' >> /home/pi/.Xsession
     echo 'chromium-browser --noerrdialogs http://'$serverip':'$serverport'/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size='$resolution' --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0' >> /home/pi/.Xsession
 
     sudo chown pi:pi /home/pi/.Xsession
