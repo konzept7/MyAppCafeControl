@@ -31,6 +31,17 @@ if [[ "$thingType" == "Server" ]]; then
   echo "REGION=$region" >> .env
   echo "TYPE=$thingType" >> .env
   echo "THINGNAME=$thingName" >> .env
+  echo "VUE_APP_SERVER_IP=192.168.55.17" >> .env
+  echo "BOX_ID=$thingName" >> .env
+  echo "AWS_REGION=$region" >> .env
+  echo "EVENTSTABLE=boxevents" >> .env
+  echo "DOC_BUCKET=doc.myapp.cafe" >> .env
+  echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> .env
+  echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy" >> .env
+  echo "VUE_APP_PLU_PORT=8000" >> .env
+  echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
+  echo "VUE_APP_LANGUAGE=$language"
+
 fi
 
 
@@ -77,10 +88,14 @@ aws iot add-thing-to-thing-group --region $region --thing-group-name MAC_Server_
 echo "creating role alias"
 aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
 
+echo "downloading current solution"
+aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
+docker-compose pull
 
 echo ""
 echo "# ********************************************"
 echo "# *** Registration complete *** "
-echo "# *** Successfully registed $thingName as $thingType in $region *** "
+echo "# *** Successfully registered $thingName as $thingType in $region *** "
+echo "# *** Downloaded current solution *** "
 echo "# ********************************************"
 echo "  "

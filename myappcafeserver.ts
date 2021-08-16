@@ -27,6 +27,15 @@ export enum ServerState {
   FatalError = "FatalError"
 }
 
+export enum ServerEvents {
+  closed = "closed",
+  okay = "okay",
+  change = "change",
+  readyForUpdate = "readyForUpdate",
+  fatalError = "fatalError",
+  allOrdersFinished = "allOrdersFinished"
+}
+
 
 class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _retryTime = 24 * 60 * 60 * 1000;
@@ -42,8 +51,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   public shadow: ServerShadow;
   public containers: Array<Dockerode.ContainerInfo>;
   public images: Array<Dockerode.ImageInfo>;
-  private customMyappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
-  private myappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue", "redis"];
+  // private customMyappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
+  // private myappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue", "redis"];
   private _isBlockingOrders = false;
   private _currentOrders = new Array<any>();
 
@@ -56,19 +65,23 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     this._state = value;
 
+    if (this._state === ServerState.closed) {
+      this.emit(ServerEvents.closed);
+    }
+
     if (this.isNotOperating) {
-      this.emit('readyForUpdate');
+      this.emit(ServerEvents.readyForUpdate);
     }
 
     if (value === ServerState.FatalError) {
-      this.emit('fatalError')
+      this.emit(ServerEvents.fatalError)
     }
 
     if (value === ServerState.Okay) {
-      this.emit('okay');
+      this.emit(ServerEvents.okay);
     }
 
-    this.emit('change', value);
+    this.emit(ServerEvents.change, value);
   }
 
   constructor(url: string, stateHubUrl: string, orderHubUrl: string, path: string, thingName: string, connection: mqtt.MqttClientConnection) {
@@ -124,7 +137,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // after successful init, we won't be blocking orders
       if (args === ServerState.NeverInitialized || args === ServerState.Okay && (this.state === ServerState.Starting || this.state === ServerState.Restarting || this.state === ServerState.NeverInitialized)) {
         this._isBlockingOrders = false;
-        this.emit('allOrdersFinished');
+        this.emit(ServerEvents.allOrdersFinished);
       }
       this.state = args
     });
@@ -138,7 +151,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       if (args === 'allFinished') {
         this._currentOrders = new Array<any>();
-        this.emit('allOrdersFinished');
+        this.emit(ServerEvents.allOrdersFinished);
       }
     });
 
@@ -181,7 +194,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if ((order.status === "PickedUp") || order.status === "Completed" && updatedCurrentOrderIndex !== -1 && order.TargetGate.State === "Available") {
         this._currentOrders.splice(updatedCurrentOrderIndex, 1);
         if (this._currentOrders.length === 0) {
-          this.emit('allOrdersFinished');
+          this.emit(ServerEvents.allOrdersFinished);
         }
         return;
       }
@@ -198,6 +211,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   get isStarting(): boolean {
     return this.state === ServerState.Starting || this.state === ServerState.Restarting;
+  }
+  get composeFile(): string { return "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? " --file docker-compose.x86.yml" : "" }
+  get customMyappcafeImages(): Array<string> {
+    let arr = ["status", "myappcafeserver", "config", "terminal", "display"]
+    arr = arr.map(e => "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? e : e);
+    return arr;
+  }
+  get myappcafeImages(): Array<string> {
+    return [...this.customMyappcafeImages, "redis"]
   }
 
 
@@ -228,28 +250,29 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         };
 
         const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
+        console.log('all current image tags', allTags)
         if (this.myappcafeImages.every(name => allTags.some(tag => tag.includes(name)))) {
           console.log('images for every needed container found!', this.myappcafeImages)
         } else {
           console.warn('it was not possible to find every container needed for myappcafe');
         }
 
-        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")) ?? false));
+        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
         const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
+        console.log('all custom image tags', allCustomTags)
         if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
           console.log('images for every custom container found!')
         }
         else {
-          console.warn('not all images found! current images:', this.images);
+          console.warn('not all images found! current images:', this.customMyappcafeImages, this.images);
           console.warn('we\'ll try to build all images with docker-compose')
           try {
-            //await this.executeUpdate(undefined);
+            await this.executeUpdate(undefined);
           } catch (error) {
             console.error('error executing update', error);
             reject('error executing update\n' + error?.message);
           }
-          // await awaitableExec('docker-compose build ' + this.myappcafeImages.join(' '), { cwd: this._serverPath })
-          this.images = response.filter(image => image.RepoTags.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")));
+          this.images = response.filter(image => (image.RepoTags?.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")) ?? false));
           const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
           if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
             console.log('images for every custom container found!')
@@ -286,6 +309,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     })
   }
 
+  get isOperating(): boolean {
+    return this.state === ServerState.Okay || this.state === ServerState.Paused || this.state === ServerState.Pausing || this.state === ServerState.Starting || this.state === ServerState.Restarting
+  }
+
   get isNotOperating(): boolean {
     return this.state === ServerState.closed || this.state === ServerState.NeverInitialized || this.state === ServerState.FatalError;
   }
@@ -313,7 +340,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   async startContainers(images: Array<string>) {
     console.log('starting containers as requested', images)
-    return awaitableExec('docker-compose up -d ' + images.join(' '), {
+    return awaitableExec('docker-compose' + this.composeFile + ' up -d ' + images.join(' '), {
       cwd: this._serverPath
     })
   }
@@ -331,10 +358,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async stopContainers(imageNames: Array<string> | undefined) {
-    if (!imageNames) imageNames = []
     const infos = await docker.listContainers();
     for await (const info of infos) {
-      if (!info.Names.some(n => this.myappcafeImages.some(i => i.includes(n)))) continue;
+      if (!info.Names.some(n => this._containers.some(i => i.includes(n)))) continue;
       const container = docker.getContainer(info.Id);
       await container.stop();
     }
@@ -347,6 +373,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   sleep(ms: number) {
     new Promise(res => setTimeout(res, ms))
+  }
+
+  waitOnce(event: string, timeout: number) {
+    return new Promise((resolve, reject) => {
+      setTimeout(reject, timeout);
+      this.once(event, () => resolve)
+    })
   }
 
 
@@ -367,16 +400,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
         console.log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
-        await axios.post(this._url + 'init/initnow');
-        console.log('init commands sent, waiting for server to be in state okay')
-        this.once('okay', () => {
+        this.once(ServerEvents.okay, () => {
           console.log('server seems to be okay after init');
           resolve(true)
         });
-        this.once('fatalError', () => {
+        this.once(ServerEvents.fatalError, () => {
           console.warn('server is error after sending init command')
           reject('server is in fatal error state')
         })
+        await axios.post(this._url + 'init/initnow');
+        console.log('init commands sent, waiting for server to be in state okay')
       } catch (error) {
         console.error('error starting box', error)
         reject(error)
@@ -437,21 +470,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
-  private async waitForOrdersToFinish(timeoutInMinutes: number | undefined): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      if (this.isNotOperating || this._currentOrders.length === 0) return resolve(true);
-      await this.toggleBlockOrders(true);
-      const timeout = (timeoutInMinutes || 10) * 1000 * 60;
-      setTimeout(() => {
-        console.warn('timed out while waiting for orders to finish')
-        resolve(false);
-        return;
-      }, timeout);
-      this.once('allOrdersFinished', () => {
-        console.info('got message that all orders are finished')
-        resolve(true)
-      });
-    })
+  private async waitForOrdersToFinish(timeoutInMinutes: number | undefined) {
+    if (this.isNotOperating || this._currentOrders.length === 0) return true;
+    await this.toggleBlockOrders(true);
+    try {
+      const timeout = (timeoutInMinutes ?? 10) * 1000 * 60
+      console.log('waiting for orders to be finished')
+      await this.waitOnce('allOrdersFinished', timeout)
+      console.log('all orders should be finished')
+      return true;
+    } catch (error) {
+      console.error('timed out while waiting for orders to be finished');
+      return false;
+    }
   }
 
   async shutdownGracefully(inSeconds: number) {
@@ -466,7 +497,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           reject(error);
         }
         console.log('scheduled server shutdown in ' + inSeconds + " seconds")
-        this.on('change', newValue => {
+        this.on(ServerEvents.change, newValue => {
           if (newValue === 'closed')
             resolve('server is shut down');
         })
@@ -609,7 +640,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.sleep(60 * 1000);
       }
       try {
-
+        const timeout = setTimeout(() => {
+          console.warn('could not start box after 20 minutes, box in state: ' + this.state)
+          reject();
+        }, 20 * 60 * 1000);
+        this.once(ServerEvents.okay, () => {
+          clearTimeout(timeout);
+          const success = job.Succeed();
+          jobUpdate(job.jobId, success, this._thingName, this._connection);
+          resolve(true);
+        });
+        this.once(ServerEvents.fatalError, () => {
+          clearTimeout(timeout);
+          const fail = job.Fail('server init resulted in fatal failure', "AXXXX");
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          reject;
+        });
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
@@ -617,16 +663,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       let progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
-      const timeout = setTimeout(() => {
-        console.warn('could not start box after 20 minutes, box in state: ' + this.state)
-        reject();
-      }, 20 * 1000);
-      this.once('okay', () => {
-        clearTimeout(timeout);
-        const success = job.Succeed();
-        jobUpdate(job.jobId, success, this._thingName, this._connection);
-        resolve(true);
-      })
     })
   }
 
@@ -649,7 +685,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           return
         }
 
-        this.on('change', (newValue) => {
+        this.on(ServerEvents.change, (newValue) => {
           if (newValue === ServerState.Paused) {
             let success = job.Succeed();
             jobUpdate(job.jobId, success, this._thingName, this._connection);
@@ -716,10 +752,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return new Promise(async (resolve, reject) => {
       try {
         if (this.isNotOperating || job.jobDocument.isForced) {
+          console.log('server is in state ' + this.state + ' -> update can be executed now')
           await this.executeUpdate(job);
           resolve(job)
         } else {
-          this.once('readyForUpdate', async () => {
+          console.log('server is in state ' + this.state + ' -> waiting for the server to be in an updateable state')
+          this.once(ServerEvents.readyForUpdate, async () => {
+            console.log('server is now in state ' + this.state + ' -> update can be executed now')
             await this.executeUpdate(job);
             resolve(job)
           })
@@ -789,7 +828,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       try {
 
 
-        if (option === JobOption.hard) {
+        if (option === JobOption.soft) {
           progress = job.Progress(0.2, 'waiting for orders to be finished')
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
           await this.waitForOrdersToFinish(10);
@@ -869,7 +908,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       try {
 
         console.log('downloading updates')
-        await awaitableExec("export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose pull", {
+        const setCredentials = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; "
+        await awaitableExec(setCredentials + "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull", {
           cwd: this._serverPath
         })
         progress = 0.5;
@@ -886,10 +926,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
 
         console.log('starting applications after update')
-        await awaitableExec('docker-compose up -d', {
+        await awaitableExec('docker-compose' + this.composeFile + ' up -d', {
           cwd: this._serverPath
         })
         progress = 0.9;
+        console.log('all applications restarted')
+        await sleep(20);
+        console.log('sanitized the shutdown')
+        await axios.post(this._url + 'init/sanitize');
         if (job) {
           let progressRequest = job.Progress(progress, 'restarted applications');
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)

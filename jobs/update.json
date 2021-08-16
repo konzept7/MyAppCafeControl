@@ -1,5 +1,4 @@
 {
   "operation": "update",
-  "images": ["redis", "config-provider", "status-frontend", "display-queue", "terminal", "myappcafeserver"],
   "option": "soft"
 }
