@@ -272,7 +272,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             console.error('error executing update', error);
             reject('error executing update\n' + error?.message);
           }
-          this.images = response.filter(image => (image.RepoTags?.some(tag => tag.startsWith("myappcafeserver_") && tag.endsWith("latest")) ?? false));
+          this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
           const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
           if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
             console.log('images for every custom container found!')
