@@ -37,6 +37,7 @@ services:
       - ERP_BUCKET=${ERP_BUCKET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET=${AWS_SECRET}
+      - LANGUAGE=${VUE_APP_LANGUAGE}
     deploy:
     restart: unless-stopped
     logging:

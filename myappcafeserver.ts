@@ -926,12 +926,17 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
 
         console.log('starting applications after update')
-        await awaitableExec('docker-compose' + this.composeFile + ' up -d', {
+        await awaitableExec('docker-compose' + this.composeFile + ' up -d ' + this.myappcafeImages.filter(image => !image.includes("myappcafeserver")).join(' '), {
+          cwd: this._serverPath
+        })
+        console.log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
+        await sleep(30)
+        await awaitableExec('docker-compose' + this.composeFile + ' up -d myappcafeserver', {
           cwd: this._serverPath
         })
         progress = 0.9;
         console.log('all applications restarted')
-        await sleep(20);
+        await sleep(120);
         console.log('sanitized the shutdown')
         await axios.post(this._url + 'init/sanitize');
         if (job) {

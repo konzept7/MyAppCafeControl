@@ -9,7 +9,7 @@ async function awaitableExec(command: string, options: ExecOptions): Promise<num
       if (error) {
         console.error('error executing child process', error)
         if (stdErr) console.error(stdErr)
-        console.info(stdOut)
+        console.log(stdOut)
         reject(error)
         return;
       }
