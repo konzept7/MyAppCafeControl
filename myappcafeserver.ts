@@ -645,22 +645,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.sleep(20 * 1000);
       }
       try {
-        const timeout = setTimeout(() => {
-          console.warn('could not start box after 20 minutes, box in state: ' + this.state)
-          reject();
-        }, 20 * 60 * 1000);
+        // const timeout = setTimeout(() => {
+        //   console.warn('could not start box after 20 minutes, box in state: ' + this.state)
+        //   reject();
+        // }, 20 * 60 * 1000);
         this.once(ServerEvents.okay, () => {
-          clearTimeout(timeout);
+          // clearTimeout(timeout);
           const success = job.Succeed();
           jobUpdate(job.jobId, success, this._thingName, this._connection);
           resolve(true);
         });
-        this.once(ServerEvents.fatalError, () => {
-          clearTimeout(timeout);
-          const fail = job.Fail('server init resulted in fatal failure', "AXXXX");
-          jobUpdate(job.jobId, fail, this._thingName, this._connection);
-          reject;
-        });
+        // this.once(ServerEvents.fatalError, () => {
+        //   clearTimeout(timeout);
+        //   const fail = job.Fail('server init resulted in fatal failure', "AXXXX");
+        //   jobUpdate(job.jobId, fail, this._thingName, this._connection);
+        //   reject;
+        // });
         console.log('sending start command now')
         await this.startBoxNow();
       } catch (error) {
