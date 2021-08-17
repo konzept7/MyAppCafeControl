@@ -926,7 +926,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
 
         console.log('starting applications after update')
-        await awaitableExec('docker-compose' + this.composeFile + ' up -d ' + this.myappcafeImages.filter(image => !image.includes("myappcafeserver")).join(' '), {
+        await awaitableExec('docker-compose' + this.composeFile + ' up -d ' + this._containers.filter(container => !container.includes("myappcafeserver")).join(' '), {
           cwd: this._serverPath
         })
         console.log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
