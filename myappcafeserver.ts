@@ -626,7 +626,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     console.log('got job to init box, starting now')
     return new Promise(async (resolve, reject) => {
       if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
-        if (this._isBlockingOrders) await this.toggleBlockOrders(false);
+        console.log('server is in state ' + this._state + ' and blocking orders: ' + this._isBlockingOrders)
+        console.log('job will succeed because server is already in the correct state')
+        if (this._isBlockingOrders && this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) await this.toggleBlockOrders(false);
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
         resolve(true)
@@ -639,7 +641,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       if (option !== JobOption.soft) {
         await this.shutdownGracefully(10);
-        await this.sleep(60 * 1000);
+        console.log('waiting 20 seconds')
+        await this.sleep(20 * 1000);
       }
       try {
         const timeout = setTimeout(() => {
@@ -658,6 +661,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           reject;
         });
+        console.log('sending start command now')
         await this.startBoxNow();
       } catch (error) {
         console.error('error when initializing box', error)
