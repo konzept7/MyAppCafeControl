@@ -264,21 +264,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           console.log('images for every custom container found!')
         }
         else {
-          console.warn('not all images found! current images:', this.customMyappcafeImages, this.images);
-          console.warn('we\'ll try to build all images with docker-compose')
-          try {
-            await this.executeUpdate(undefined);
-          } catch (error) {
-            console.error('error executing update', error);
-            reject('error executing update\n' + error?.message);
-          }
-          this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
-          const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
-          if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
-            console.log('images for every custom container found!')
-          } else {
-            reject("even after trying to build new, not every image was found")
-          }
+          console.log('figure out how to handle preparation')
+          // console.warn('not all images found! current images:', this.customMyappcafeImages, this.images);
+          // console.warn('we\'ll try to build all images with docker-compose')
+          // try {
+          //   await this.executeUpdate(undefined);
+          // } catch (error) {
+          //   console.error('error executing update', error);
+          //   reject('error executing update\n' + error?.message);
+          // }
+          // this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
+          // const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
+          // if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
+          //   console.log('images for every custom container found!')
+          // } else {
+          //   reject("even after trying to build new, not every image was found")
+          // }
         }
         resolve(true);
       })
@@ -622,6 +623,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async initHandler(job: Job) {
     const option = job.jobDocument.option || JobOption.soft;
+    console.log('got job to init box, starting now')
     return new Promise(async (resolve, reject) => {
       if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
         if (this._isBlockingOrders) await this.toggleBlockOrders(false);
@@ -935,8 +937,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           cwd: this._serverPath
         })
         progress = 0.9;
-        console.log('all applications restarted')
-        await sleep(120 * 1000);
+        console.log('all applications restarted, waiting 2 minutes for all to settle')
+        await sleep(2 * 60 * 1000);
         console.log('sanitized the shutdown')
         await axios.post(this._url + 'init/sanitize');
         if (job) {
