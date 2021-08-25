@@ -14,7 +14,9 @@ const JOBTOPICS = {
   NOTIFY: 'notify-next',
   UPDATE: 'update',
   NEXT: '$next/get/accepted',
-  QUEUED: '$next/get/queued'
+  QUEUED: '$next/get/queued',
+  CANCELED: "canceled",
+  COMPLETED: "completed"
 }
 
 // the document from s3, containing all the information necessary for the operation
@@ -73,6 +75,21 @@ class Job {
     this.statusDetails.errorCode = errorCode;
     return new JobRequest(this)
   }
+
+  // listens if any "outside" job events are incoming
+  // for example if a job was canceled or aborted
+  // if a job was cancelled, the promise will be rejected
+  public listenToJobEvents(connection: mqtt.MqttClientConnection) {
+    console.log('subscribing to job updates for job ' + this.jobId)
+    const baseTopic = "$aws/events/job/"
+    return new Promise((resolve, reject) => {
+      // cancelled job
+      connection.subscribe(baseTopic + this.jobId + JOBTOPICS.CANCELED, mqtt.QoS.AtLeastOnce).then(reject)
+
+      // completed job
+      connection.subscribe(baseTopic + this.jobId + JOBTOPICS.COMPLETED, mqtt.QoS.AtLeastOnce).then(resolve)
+    })
+  }
 }
 // the request that will be sent out to aws iot
 class JobRequest {
@@ -89,6 +106,8 @@ function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, con
   console.log('sending job update', jobRequest);
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
 }
+
+
 
 enum JobOption {
   soft = "soft",

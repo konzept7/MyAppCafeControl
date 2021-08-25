@@ -347,7 +347,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async start() {
+    console.log('starting containers')
     await this.startContainers(this._containers);
+
     let response = await axios.get(this._url + 'connected', { timeout: 10 * 1000 })
     if (response.status === 200) return true;
 
