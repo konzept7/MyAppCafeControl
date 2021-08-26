@@ -51,8 +51,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   public shadow: ServerShadow;
   public containers: Array<Dockerode.ContainerInfo>;
   public images: Array<Dockerode.ImageInfo>;
-  // private customMyappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue"]
-  // private myappcafeImages = ["status-frontend", "myappcafeserver", "config-provider", "terminal", "display-queue", "redis"];
   private _isBlockingOrders = false;
   private _currentOrders = new Array<any>();
 
@@ -460,6 +458,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.pauseHandler(job)
       }
 
+      if (operation === 'test-beverage') {
+        return await this.testBeverageHandler(job)
+      }
+
       console.warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -472,6 +474,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     }
   }
+
 
   private async waitForOrdersToFinish(timeoutInMinutes: number | undefined) {
     if (this.isNotOperating || this._currentOrders.length === 0) return true;
@@ -621,6 +624,21 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     } catch (error) {
       console.error('error shutting down application')
     }
+  }
+
+  async testBeverageHandler(job: Job) {
+    const amount = job.jobDocument.amount ?? 1;
+    console.info('test beverage requested');
+    for (let index = 0; index < amount; index++) {
+      try {
+        await axios.post(this._url + "order/test");
+      } catch (error) {
+        console.error('error while ordering test beverage', error);
+        const fail = job.Fail('ordering test beverage returned non OK status', 'AXXXX');
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+    jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
   }
 
   async initHandler(job: Job) {

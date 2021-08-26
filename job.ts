@@ -32,6 +32,7 @@ class JobDocument {
   body: string | undefined;
   httpMethod: string | undefined;
   boxId: string | undefined;
+  amount: number | undefined;
 }
 // details about the step we are currently in
 class StatusDetails {
