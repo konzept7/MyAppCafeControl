@@ -373,7 +373,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   sleep(ms: number) {
-    new Promise(res => setTimeout(res, ms))
+    return new Promise(res => setTimeout(res, ms))
   }
 
   waitOnce(event: string, timeout: number) {
@@ -401,6 +401,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
         console.log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
+        console.log('sanitized the shutdown, just in case')
+        console.log('waiting 5 seconds until init command')
         this.once(ServerEvents.okay, () => {
           console.log('server seems to be okay after init');
           resolve(true)
@@ -409,6 +411,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           console.warn('server is error after sending init command')
           reject('server is in fatal error state')
         })
+        await this.sleep(5000);
+        console.log('5 seconds over, now sending init command')
         await axios.post(this._url + 'init/initnow');
         console.log('init commands sent, waiting for server to be in state okay')
       } catch (error) {
@@ -636,6 +640,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         console.error('error while ordering test beverage', error);
         const fail = job.Fail('ordering test beverage returned non OK status', 'AXXXX');
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
+        return;
       }
     }
     jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
