@@ -35,11 +35,6 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     sudo systemctl daemon-reload
     sudo systemctl enable myappcafecontrol.service
     sudo systemctl start myappcafecontrol.service
-
-    # install script in auto-start (first remove any existing entries, then add to end of file)
-    sudo sed /etc/rc.local -i -e "s/^sudo \/home\/pi\/srv\/MyAppCafeControl\/scripts\/update_myappcafecontrol.sh//"
-    sudo sed /etc/rc.local -i -e "s/^exit 0/sudo \/home\/pi\/srv\/MyAppCafeControl\/scripts\/update_myappcafecontrol.sh\nexit 0/"
-    sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
 fi
 
 

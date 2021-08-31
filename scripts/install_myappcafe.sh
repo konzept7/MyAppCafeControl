@@ -207,7 +207,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     echo
 
     # TODO: check:
-    (crontab -l ; echo "@reboot /srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh")| crontab -
+    (crontab -l ; echo "@reboot /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh")| crontab -
 
     # for display-only devices set up quiet/invisible boot
     if [[ "$installationPackage" == "display" ]]; then
