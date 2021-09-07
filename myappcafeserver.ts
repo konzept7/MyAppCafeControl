@@ -10,6 +10,9 @@ import { Tunnel } from './tunnel'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
+import { existsSync, readFile, writeFile } from 'fs';
+import path from 'path';
+
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
@@ -466,6 +469,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.testBeverageHandler(job)
       }
 
+      if (operation === 'download-env') {
+        return await this.downloadEnvHandler(job)
+      }
+
+      if (operation === 'upload-env') {
+        return await this.uploadEnvHandler(job)
+      }
+
       console.warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -477,6 +488,56 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
+  }
+
+  private getEnvPath() {
+    let envPath = path.join(this._serverPath, '.env');
+    const localEnvPath = envPath + ".local"
+    return (existsSync(localEnvPath)) ? localEnvPath : envPath;
+  }
+
+  downloadEnvHandler(job: Job) {
+    console.warn('downloading new .env file, this might hurt very much', job)
+
+    if (!(job.jobDocument.parameters?.env)) {
+      console.error('there was no env data in job provided', job);
+      const fail = job.Fail('error reading .env data, job should have a parameters.env property', 'AXXXX');
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      return;
+    }
+    const envData = job.jobDocument.parameters['env'];
+    console.log('writing new .env data to filesystem', envData);
+    try {
+      const envPath = this.getEnvPath();
+      writeFile(envPath, envData, (error) => {
+        if (error) {
+          console.error('error writing local .env file to path ' + envPath, error);
+          const fail = job.Fail('error writing .env file', 'AXXXX');
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          return;
+        }
+        console.log('successfully written .env file')
+        jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
+      })
+    } catch (error) {
+      console.error('error downloading .env file')
+    }
+    throw new Error('Method not implemented.');
+  }
+  async uploadEnvHandler(job: Job) {
+    const envPath = this.getEnvPath();
+    readFile(envPath, 'utf-8',
+      (error, data) => {
+        if (error) {
+          console.error('error reading local .env file from path ' + envPath, error);
+          const fail = job.Fail('error reading .env file', 'AXXXX');
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          return;
+        }
+        console.log('successfully read .env file', data)
+        jobUpdate(job.jobId, job.Succeed(JSON.stringify({ data })), this._thingName, this._connection);
+      }
+    )
   }
 
 
