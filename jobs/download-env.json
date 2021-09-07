@@ -1,4 +1,0 @@
-{
-  "operation": "download-env",
-  "parameters": {"env": "REGION=eu-central-1\r\nTYPE=Server\r\nTHINGNAME=kZPxEcYGE2_QlH18-Pb5s\r\nVUE_APP_SERVER_IP=192.168.55.17\r\nBOXID=kZPxEcYGE2_QlH18-Pb5s\r\nAWS_REGION=eu-central-1\r\nEVENTSTABLE=boxevents\r\nDOC_BUCKET=doc.myapp.cafe\r\nMYAPPCAFESERVER_PATH=C:\\Users\\fbieleck\\source\\repos\\MyAppCafeControl\\\r\nLOCALPROXY_PATH=C:\\Users\\fbieleck\\source\\repos\\aws-iot-securetunneling-localproxy\r\nVUE_APP_PLU_PORT=8000\r\nVUE_APP_MAINSERVER_PORT=5002\r\nVUE_APP_LANGUAGE=en\r\nAWS_ACCESS_KEY=AKIAURGZ3VNTIWSUVLVV\r\nAWS_SECRET=mYzbcq9emR3bo+YtbfSBeUGPi\/ckyA0g6d+2G9zH\r\nERP_BUCKET=erp.boxes.myapp.cafe\r\nPLATFORM=x86"}
-}
