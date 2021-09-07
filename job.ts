@@ -27,7 +27,7 @@ class JobDocument {
   isForced: boolean | undefined;
   command: string | undefined;
   option: JobOption | undefined;
-  parameters: Map<string, string> | undefined;
+  parameters: Record<string, string> | undefined;
   url: string | undefined;
   body: string | undefined;
   httpMethod: string | undefined;
@@ -61,11 +61,12 @@ class Job {
     }
     return new JobRequest(this);
   }
-  public Succeed(): JobRequest {
+  public Succeed(details: string | undefined = undefined): JobRequest {
     console.log('succeeding job with id ' + this.jobId)
     this.status = 'SUCCEEDED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.progress = 1;
+    if (details) this.statusDetails.message = details;
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
