@@ -490,7 +490,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     } catch (err) {
       error('job failed', { job, err })
       if (job.status !== 'FAILED') {
-        const fail = job.Fail(err, "AXXXX");
+        const fail = job.Fail('job failed for unknown reasons', "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
