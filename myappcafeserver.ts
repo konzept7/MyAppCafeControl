@@ -7,6 +7,7 @@ import { Job, jobUpdate, StatusDetails, JobOption } from './job'
 import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
 import { SessionCredentials } from './sessionCredentials';
 import { Tunnel } from './tunnel'
+import { log, warn, info, error } from './log'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -61,7 +62,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return this._state;
   }
   set state(value) {
-    console.info('current state will be set', value)
+    info('current state will be set', value)
     if (this._state === value) return;
 
     this._state = value;
@@ -123,15 +124,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       .configureLogging("error")
       .build();
 
-    this._stateConnection.onclose((error: any) => {
-      console.error("server disconnected", error);
+    this._stateConnection.onclose((err: any) => {
+      error("server disconnected", err);
       this._isBlockingOrders = false;
       this.state = ServerState.closed;
     });
 
     this._stateConnection.onreconnected((connectionId: string) => {
-      console.log("reconnected with connectionId " + connectionId);
-      if (this._isBlockingOrders) console.warn('reconnected, but new orders are still blocked');
+      log("reconnected with connectionId " + connectionId);
+      if (this._isBlockingOrders) warn('reconnected, but new orders are still blocked');
     });
 
     this._stateConnection.on("current", (args: ServerState) => {
@@ -225,59 +226,64 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
 
   async prepare(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+
+      // check for local proxy
+
+
+
       // list all running containers
       docker.listContainers((err: any, response: Array<Dockerode.ContainerInfo>) => {
         if (err) {
-          console.error('error listing containers', err)
+          error('error listing containers', err)
           return;
         }
         this.containers = response
-        console.log('containers running', this.containers)
+        log('containers running', this.containers)
       });
 
 
       // find out if images are built for all necessary containers
       docker.listImages(async (err: any, response: Array<Dockerode.ImageInfo>) => {
         if (err) {
-          console.error('error listing images', err)
+          error('error listing images', err)
           return;
         }
 
-        console.log('all images', response)
+        log('all images', response)
 
         let imageInfoAccumulator = (array: Array<string>, entry: Dockerode.ImageInfo): Array<string> => {
           return [...array, ...(entry.RepoTags ?? [])];
         };
 
         const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
-        console.log('all current image tags', allTags)
+        log('all current image tags', allTags)
         if (this.myappcafeImages.every(name => allTags.some(tag => tag.includes(name)))) {
-          console.log('images for every needed container found!', this.myappcafeImages)
+          log('images for every needed container found!', this.myappcafeImages)
         } else {
-          console.warn('it was not possible to find every container needed for myappcafe');
+          warn('it was not possible to find every container needed for myappcafe');
         }
 
         this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
         const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
-        console.log('all custom image tags', allCustomTags)
+        log('all custom image tags', allCustomTags)
         if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
-          console.log('images for every custom container found!')
+          log('images for every custom container found!')
         }
         else {
-          console.log('figure out how to handle preparation')
-          // console.warn('not all images found! current images:', this.customMyappcafeImages, this.images);
-          // console.warn('we\'ll try to build all images with docker-compose')
+          log('figure out how to handle preparation')
+          // warn('not all images found! current images:', this.customMyappcafeImages, this.images);
+          // warn('we\'ll try to build all images with docker-compose')
           // try {
           //   await this.executeUpdate(undefined);
-          // } catch (error) {
-          //   console.error('error executing update', error);
-          //   reject('error executing update\n' + error?.message);
+          // } catch (err) {
+          //   error('error executing update', err);
+          //   reject('error executing update\n' + err?.message);
           // }
           // this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
           // const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
           // if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
-          //   console.log('images for every custom container found!')
+          //   log('images for every custom container found!')
           // } else {
           //   reject("even after trying to build new, not every image was found")
           // }
@@ -327,13 +333,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             withCredentials: false
           })
           .then(() => {
-            console.log("connected to signalR");
+            log("connected to signalR");
             resolve('connected to state hub');
             return;
           })
-          .catch((error: any) => {
+          .catch((err: any) => {
             this.state = ServerState.closed;
-            console.error('error starting connection to server', error);
+            error('error starting connection to server', err);
           });
         // wait for 15 seconds before trying to connect again
         await sleep(15 * 1000)
@@ -341,14 +347,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     })
   }
   async startContainers(images: Array<string>) {
-    console.log('starting containers as requested', images)
+    log('starting containers as requested', images)
     return awaitableExec('docker-compose' + this.composeFile + ' up -d ' + images.join(' '), {
       cwd: this._serverPath
     })
   }
 
   async start() {
-    console.log('starting containers')
+    log('starting containers')
     await this.startContainers(this._containers);
 
     let response = await axios.get(this._url + 'connected', { timeout: 10 * 1000 })
@@ -389,38 +395,38 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async startBoxNow(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
-      console.log('got request to start box, current state: ' + this.state)
+      log('got request to start box, current state: ' + this.state)
       if (this.state === ServerState.FatalError) {
-        console.log('server is in fatal error, shutting down')
+        log('server is in fatal error, shutting down')
         await this.shutdownGracefully(10);
         await sleep(10 * 1000);
       }
       try {
         if (this.state === ServerState.closed) {
-          console.log('server is currently shut down, starting containers');
+          log('server is currently shut down, starting containers');
           await this.start();
-          console.log('started server, now waiting 30 seconds');
+          log('started server, now waiting 30 seconds');
           await sleep(30 * 1000);
         }
-        console.log('waited for server to be up, now sending init commands');
+        log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
-        console.log('sanitized the shutdown, just in case')
-        console.log('waiting 5 seconds until init command')
+        log('sanitized the shutdown, just in case')
+        log('waiting 5 seconds until init command')
         this.once(ServerEvents.okay, () => {
-          console.log('server seems to be okay after init');
+          log('server seems to be okay after init');
           resolve(true)
         });
         this.once(ServerEvents.fatalError, () => {
-          console.warn('server is error after sending init command')
+          warn('server is error after sending init command')
           reject('server is in fatal error state')
         })
         await this.sleep(5000);
-        console.log('5 seconds over, now sending init command')
+        log('5 seconds over, now sending init command')
         await axios.post(this._url + 'init/initnow');
-        console.log('init commands sent, waiting for server to be in state okay')
-      } catch (error) {
-        console.error('error starting box', error)
-        reject(error)
+        log('init commands sent, waiting for server to be in state okay')
+      } catch (err) {
+        error('error starting box', err)
+        reject(err)
       }
     })
 
@@ -428,7 +434,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   private stepOperations: Array<string> = ["reboot"]
   async handleJob(job: Job) {
-    console.log('trying to handle a job', job)
+    log('trying to handle a job', job)
     try {
       if (!("operation" in job.jobDocument)) {
         throw new Error("job has no operation name, we don't know what to do");
@@ -436,7 +442,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const operation = job.jobDocument.operation;
 
       if (job.status === 'IN_PROGRESS' && !(this.stepOperations.includes(operation))) {
-        console.error('received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now', job)
+        error('received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now', job)
         const fail = job.Fail('received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now', "AXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return Promise.reject();
@@ -477,14 +483,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.uploadEnvHandler(job)
       }
 
-      console.warn("unknown command sent to handler", job.jobDocument);
+      warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
 
-    } catch (error) {
-      console.error('job failed', job, error)
+    } catch (err) {
+      error('job failed', { job, err })
       if (job.status !== 'FAILED') {
-        const fail = job.Fail(error, "AXXXX");
+        const fail = job.Fail(err, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -497,44 +503,44 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   downloadEnvHandler(job: Job) {
-    console.warn('downloading new .env file, this might hurt very much', job)
+    warn('downloading new .env file, this might hurt very much', job)
 
     if (!(job.jobDocument.parameters?.env)) {
-      console.error('there was no env data in job provided', job);
+      error('there was no env data in job provided', job);
       const fail = job.Fail('error reading .env data, job should have a parameters.env property', 'AXXXX');
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
     const envData = job.jobDocument.parameters['env'];
-    console.log('writing new .env data to filesystem', envData);
+    log('writing new .env data to filesystem', envData);
     try {
       const envPath = this.getEnvPath();
-      writeFile(envPath, envData, (error) => {
-        if (error) {
-          console.error('error writing local .env file to path ' + envPath, error);
+      writeFile(envPath, envData, (err) => {
+        if (err) {
+          error('error writing local .env file to path ' + envPath, err);
           const fail = job.Fail('error writing .env file', 'AXXXX');
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           return;
         }
-        console.log('successfully written .env file')
+        log('successfully written .env file')
         jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
       })
-    } catch (error) {
-      console.error('error downloading .env file')
+    } catch (err) {
+      error('error downloading .env file', err)
     }
     throw new Error('Method not implemented.');
   }
   async uploadEnvHandler(job: Job) {
     const envPath = this.getEnvPath();
     readFile(envPath, 'utf-8',
-      (error, data) => {
-        if (error) {
-          console.error('error reading local .env file from path ' + envPath, error);
+      (err, data) => {
+        if (err) {
+          error('error reading local .env file from path ' + envPath, err);
           const fail = job.Fail('error reading .env file', 'AXXXX');
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           return;
         }
-        console.log('successfully read .env file', data)
+        log('successfully read .env file', data)
         jobUpdate(job.jobId, job.Succeed(JSON.stringify({ data })), this._thingName, this._connection);
       }
     )
@@ -546,35 +552,35 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     await this.toggleBlockOrders(true);
     try {
       const timeout = (timeoutInMinutes ?? 10) * 1000 * 60
-      console.log('waiting for orders to be finished')
+      log('waiting for orders to be finished')
       await this.waitOnce('allOrdersFinished', timeout)
-      console.log('all orders should be finished')
+      log('all orders should be finished')
       return true;
-    } catch (error) {
-      console.error('timed out while waiting for orders to be finished');
+    } catch (err) {
+      error('timed out while waiting for orders to be finished', err);
       return false;
     }
   }
 
   async shutdownGracefully(inSeconds: number) {
     if (!inSeconds) inSeconds = 10;
-    console.log('stopping server if not already closed', this.state)
+    log('stopping server if not already closed', this.state)
     return new Promise(async (resolve, reject) => {
       if (this.state !== 'closed') {
         try {
           await axios.post(this._url + "init/shutdown/" + Math.floor(inSeconds), undefined, { timeout: 10 * 1000 });
-        } catch (error) {
-          console.error('error shutting down application', error);
-          reject(error);
+        } catch (err) {
+          error('error shutting down application', err);
+          reject(err);
         }
-        console.log('scheduled server shutdown in ' + inSeconds + " seconds")
+        log('scheduled server shutdown in ' + inSeconds + " seconds")
         this.on(ServerEvents.change, newValue => {
           if (newValue === 'closed')
             resolve('server is shut down');
         })
       }
       else {
-        console.log('server was already shut down');
+        log('server was already shut down');
         resolve('server is shut down');
 
       }
@@ -610,10 +616,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     if (job.statusDetails?.currentStep === 'scheduled') {
       try {
         await this.update(job);
-        console.log('successfully updated for myappcafeserver')
-      } catch (error) {
-        console.error('error on updating myappcafeserver', error);
-        const failed = job.Fail(JSON.stringify(error), "AXXXX");
+        log('successfully updated for myappcafeserver')
+      } catch (err) {
+        error('error on updating myappcafeserver', err);
+        const failed = job.Fail(JSON.stringify(err), "AXXXX");
         jobUpdate(job.jobId, failed, this._thingName, this._connection);
       }
     }
@@ -636,7 +642,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   //       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
   //     } else {
   //       const startTimer = setTimeout(() => {
-  //         console.error('server was not started after 15 minutes')
+  //         error('server was not started after 15 minutes')
   //         jobUpdate(job.jobId, job.Fail('not started after 15 minutes', "AXXXX"), this._thingName, this._connection);
   //       }, 15 * 60 * 1000);
   //       this.once('okay', () => {
@@ -644,18 +650,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   //         jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
   //       })
   //     }
-  //   } catch (error) {
-  //     console.error('error while starting box')
-  //     jobUpdate(job.jobId, job.Fail(JSON.stringify(error), "AXXXX"), this._thingName, this._connection);
+  //   } catch (err) {
+  //     error('error while starting box')
+  //     jobUpdate(job.jobId, job.Fail(JSON.stringify(err), "AXXXX"), this._thingName, this._connection);
   //   }
   // }
 
   async shutdownHandler(job: Job) {
     if (job.status !== 'QUEUED') return;
     try {
-      console.info('shutdown job received', job)
+      info('shutdown job received', job)
       jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
-      console.info('current state of server application', this._state)
+      info('current state of server application', this._state)
 
       const option = job.jobDocument?.option ?? JobOption.soft;
       if (option === JobOption.soft) {
@@ -664,41 +670,41 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(0.5, "all orders finished"), this._thingName, this._connection);
 
       if (this._state === ServerState.Okay) {
-        console.log('pausing application before shutting it down');
+        log('pausing application before shutting it down');
         try {
           let pause = await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
-          console.info('paused application', pause.data);
-        } catch (error) {
-          console.error('error while waiting for application to be paused', error)
+          info('paused application', pause.data);
+        } catch (err) {
+          error('error while waiting for application to be paused', err)
         }
       }
       jobUpdate(job.jobId, job.Progress(0.75, "if application was running, it is now set to pause"), this._thingName, this._connection);
 
       if (option === JobOption.forced && this.state !== ServerState.closed) {
-        console.log('shutdown is forced, so we will delete open orders');
+        log('shutdown is forced, so we will delete open orders');
         try {
           await axios.delete(this._url + "order");
-        } catch (error) {
-          console.warn('it was not possible to delete running orders, we will still continue', error)
+        } catch (err) {
+          warn('it was not possible to delete running orders, we will still continue', err)
         }
       }
 
       await this.shutdownGracefully(20);
       await this.stop();
       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
-    } catch (error) {
-      console.error('error shutting down application')
+    } catch (err) {
+      error('error shutting down application', err)
     }
   }
 
   async testBeverageHandler(job: Job) {
     const amount = job.jobDocument.amount ?? 1;
-    console.info('test beverage requested');
+    info('test beverage requested');
     for (let index = 0; index < amount; index++) {
       try {
         await axios.post(this._url + "order/test");
-      } catch (error) {
-        console.error('error while ordering test beverage', error);
+      } catch (err) {
+        error('error while ordering test beverage', err);
         const fail = job.Fail('ordering test beverage returned non OK status', 'AXXXX');
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return;
@@ -709,11 +715,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async initHandler(job: Job) {
     const option = job.jobDocument.option || JobOption.soft;
-    console.log('got job to init box, starting now')
+    log('got job to init box, starting now')
     return new Promise(async (resolve, reject) => {
       if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
-        console.log('server is in state ' + this._state + ' and blocking orders: ' + this._isBlockingOrders)
-        console.log('job will succeed because server is already in the correct state')
+        log('server is in state ' + this._state + ' and blocking orders: ' + this._isBlockingOrders)
+        log('job will succeed because server is already in the correct state')
         if (this._isBlockingOrders && this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) await this.toggleBlockOrders(false);
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
@@ -727,12 +733,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       if (option !== JobOption.soft) {
         await this.shutdownGracefully(10);
-        console.log('waiting 20 seconds')
+        log('waiting 20 seconds')
         await this.sleep(20 * 1000);
       }
       try {
         // const timeout = setTimeout(() => {
-        //   console.warn('could not start box after 20 minutes, box in state: ' + this.state)
+        //   warn('could not start box after 20 minutes, box in state: ' + this.state)
         //   reject();
         // }, 20 * 60 * 1000);
         this.once(ServerEvents.okay, () => {
@@ -747,11 +753,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         //   jobUpdate(job.jobId, fail, this._thingName, this._connection);
         //   reject;
         // });
-        console.log('sending start command now')
+        log('sending start command now')
         await this.startBoxNow();
-      } catch (error) {
-        console.error('error when initializing box', error)
-        reject(error);
+      } catch (err) {
+        error('error when initializing box', err)
+        reject(err);
       }
       let progress = job.Progress(0.5, "start command sent");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
@@ -763,7 +769,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
       if (job.jobDocument.option === JobOption.soft || job.jobDocument.option === JobOption.hard) {
 
-        console.log('got request to pause execution', job)
+        log('got request to pause execution', job)
 
         if (this.state !== ServerState.Okay && this.state !== ServerState.Paused && this.state !== ServerState.Pausing) {
           const fail = job.Fail('application is not in a state where pause is allowed, current state: ' + this.state, "AXXXX");
@@ -786,7 +792,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
 
           if (newValue !== ServerState.Pausing && this.state !== newValue) {
-            console.warn('pause was requested, but server is going to state ' + newValue);
+            warn('pause was requested, but server is going to state ' + newValue);
             const fail = job.Fail('pause was requested, but server is going to state ' + newValue, "AXXXX");
             jobUpdate(job.jobId, fail, this._thingName, this._connection);
             reject('pause was requested, but server is going to state ' + newValue)
@@ -802,9 +808,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
               jobUpdate(job.jobId, progress, this._thingName, this._connection);
             }
             await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
-          } catch (error) {
-            console.error('error while waiting for application to be paused', error)
-            const fail = job.Fail('error while waiting for application to be paused\n' + error, "AXXXX");
+          } catch (err) {
+            error('error while waiting for application to be paused', err)
+            const fail = job.Fail('error while waiting for application to be paused\n' + err, "AXXXX");
             jobUpdate(job.jobId, fail, this._thingName, this._connection);
             reject()
             return
@@ -812,7 +818,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
 
       } else if (job.jobDocument.option === JobOption.unpause) {
-        console.log('got request to unpause application', job)
+        log('got request to unpause application', job)
 
         if (this.state !== 'Paused') {
           const fail = job.Fail('unpause was requested, but server is in state ' + this.state, "AXXXX");
@@ -826,9 +832,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           let success = job.Succeed();
           jobUpdate(job.jobId, success, this._thingName, this._connection);
           resolve(true);
-        } catch (error) {
-          console.error('error while waiting for application to be unpaused', error)
-          const fail = job.Fail('error while waiting for application to be unpaused\n' + error, "AXXXX");
+        } catch (err) {
+          error('error while waiting for application to be unpaused', err)
+          const fail = job.Fail('error while waiting for application to be unpaused\n' + err, "AXXXX");
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           reject()
           return
@@ -844,20 +850,20 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return new Promise(async (resolve, reject) => {
       try {
         if (this.isNotOperating || job.jobDocument.isForced) {
-          console.log('server is in state ' + this.state + ' -> update can be executed now')
+          log('server is in state ' + this.state + ' -> update can be executed now')
           await this.executeUpdate(job);
           resolve(job)
         } else {
-          console.log('server is in state ' + this.state + ' -> waiting for the server to be in an updateable state')
+          log('server is in state ' + this.state + ' -> waiting for the server to be in an updateable state')
           this.once(ServerEvents.readyForUpdate, async () => {
-            console.log('server is now in state ' + this.state + ' -> update can be executed now')
+            log('server is now in state ' + this.state + ' -> update can be executed now')
             await this.executeUpdate(job);
             resolve(job)
           })
         }
-      } catch (error) {
-        console.error('error while executing update', error)
-        reject(error)
+      } catch (err) {
+        error('error while executing update', err)
+        reject(err)
       }
     })
   }
@@ -867,7 +873,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
       if (!job.jobDocument.command) {
         const noCommand = 'a shell command was requested, but there was no command string';
-        console.warn(noCommand)
+        warn(noCommand)
         const fail = job.Fail(noCommand, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return;
@@ -881,9 +887,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await awaitableExec(job.jobDocument.command, { cwd: this._serverPath })
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
-      } catch (error) {
-        console.error('error while executing shell command', error)
-        const fail = job.Fail('error while executing shell command: ' + error, "AXXXX");
+      } catch (err) {
+        error('error while executing shell command', err)
+        const fail = job.Fail('error while executing shell command: ' + err, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
 
@@ -895,7 +901,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
-    console.log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
+    log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
     const url = this._url + "block"
     try {
       if (block) {
@@ -905,8 +911,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await axios.delete(url);
         return true;
       }
-    } catch (error) {
-      console.error('error blocking/unblocking orders', error);
+    } catch (err) {
+      error('error blocking/unblocking orders', err);
       return false;
     }
   }
@@ -937,41 +943,43 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.startContainers(images)
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection)
-      } catch (error) {
-        console.error('error starting containers', error);
-        const fail = job.Fail('error starting containers:\n' + error, "AXXXX");
+      } catch (err) {
+        error('error starting containers', err);
+        const fail = job.Fail('error starting containers:\n' + err, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
   async handleTunnel(tunnel: Tunnel) {
-    console.log('got request to open a tunnel', tunnel)
-    return new Promise((resolve, reject) => {
+    log('got request to open a tunnel', tunnel)
+    return new Promise(async (resolve, reject) => {
       try {
-        if (!tunnel.isOpen) tunnel.open();
-        resolve(tunnel);
-      } catch (error) {
-        console.error('error opening tunnel', error)
-        reject('error opening tunnel\n' + error)
+        if (!tunnel.isOpen) {
+          await tunnel.open();
+        }
+        tunnel.isOpen ? resolve(tunnel) : reject('could not open tunnel')
+      } catch (err) {
+        error('error opening tunnel', err)
+        reject('error opening tunnel\n' + err)
       }
     })
   }
 
   async executeUpdate(job: Job | undefined) {
     return new Promise(async (resolve, reject) => {
-      console.log('starting update now');
+      log('starting update now');
 
       let progress = 0.1
 
       try {
         if (this.state !== ServerState.closed) {
-          console.log('setting state to updating')
+          log('setting state to updating')
           const updateResponse = await axios.put(this._url + "setState/Updating", {}, { timeout: 20 * 1000 });
-          console.log('updating request returned', updateResponse.status)
+          log('updating request returned', updateResponse.status)
         }
-      } catch (error) {
-        console.warn('error while trying to send update notification to main server', error)
+      } catch (err) {
+        warn('error while trying to send update notification to main server', err)
       }
       if (job) {
         let progressRequest = job.Progress(progress, 'shutting down application');
@@ -979,7 +987,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
 
       const images = (!job || !job.jobDocument.images || job.jobDocument.images === []) ? this._containers : job.jobDocument.images;
-      console.log('handling update request', images);
+      log('handling update request', images);
       progress += 0.1
       if (job) {
         let progressRequest = job.Progress(progress, 'downloading');
@@ -991,15 +999,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         credentials = await SessionCredentials.createCredentials(this._serverPath, this._thingName, "iot-update-role");
         if (!credentials) throw new Error("error getting credentials, job will fail");
 
-      } catch (error) {
-        console.error('unable to get credentials for update', error)
-        reject('unable to get credentials for update\n' + error);
+      } catch (err) {
+        error('unable to get credentials for update', err)
+        reject('unable to get credentials for update\n' + err);
         return
       }
 
       try {
 
-        console.log('downloading updates')
+        log('downloading updates')
         const setCredentials = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; "
         await awaitableExec(setCredentials + "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull", {
           cwd: this._serverPath
@@ -1017,34 +1025,34 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 
-        console.log('starting applications after update')
+        log('starting applications after update')
         await awaitableExec('docker-compose' + this.composeFile + ' up -d ' + this._containers.filter(container => !container.includes("myappcafeserver")).join(' '), {
           cwd: this._serverPath
         })
-        console.log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
+        log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
         await sleep(30 * 1000)
         await awaitableExec('docker-compose' + this.composeFile + ' up -d myappcafeserver', {
           cwd: this._serverPath
         })
         progress = 0.9;
-        console.log('all applications restarted, waiting 2 minutes for all to settle')
+        log('all applications restarted, waiting 2 minutes for all to settle')
         await sleep(2 * 60 * 1000);
-        console.log('sanitized the shutdown')
-        await axios.post(this._url + 'init/sanitize');
+        log('sanitized the shutdown')
+        await axios.post(this._url + 'init/sanitize-soft');
         if (job) {
           let progressRequest = job.Progress(progress, 'restarted applications');
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
-      } catch (error) {
-        console.error('error while exeuting update', error)
-        reject('unable to execute update\n' + error);
+      } catch (err) {
+        error('error while exeuting update', err)
+        reject('unable to execute update\n' + err);
         return
       }
       if (job) {
         const succeeded = job.Succeed();
         jobUpdate(job.jobId, succeeded, this._thingName, this._connection);
       }
-      console.log('update successful')
+      log('update successful')
       resolve('all images updated successfully');
     })
   }

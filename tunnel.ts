@@ -3,8 +3,8 @@
 // ********************************************
 
 import { exec, spawn } from 'child_process';
-import { access } from 'fs';
 import path from 'path';
+import { log, warn, error } from './log'
 
 
 function tunnelTopic(thingName: string) {
@@ -40,39 +40,37 @@ class Tunnel {
 
   public isOpen: boolean = false
 
-  isInstalled() {
-    access("./aws-iot-localproxy", (err) => {
-      console.error(err, "localproxy not installed")
-      return false;
+  async open() {
+    return new Promise((resolve, reject) => {
+      const proxyPath = path.join(process.env.LOCALPROXY_PATH || '', 'localproxy')
+      try {
+        const localProxyProcess = spawn(proxyPath, [
+          '-r', this._region,
+          '-d', this._services.map(s => s + '=' + TunnelServices[s]).join(','),
+          '-t', this._token,
+        ]);
+        localProxyProcess.on('error', (e: Error) => {
+          error('error from localproxy execution', e)
+          reject
+        });
+        localProxyProcess.on('close', (e: Error) => warn('local proxy closed', e));
+        localProxyProcess.stderr.on('data', (data: any) => {
+          warn('tunnel has been closed', Buffer.from(data).toString());
+          this.isOpen = false;
+        });
+        localProxyProcess.stdout.on('data', (data: any) => {
+          log('received tunnel data', Buffer.from(data).toString());
+        });
+      } catch (err) {
+        error('error spawning tunnel command', { proxyPath, err })
+        this.isOpen = false;
+        reject(err)
+        return;
+      }
+      this.isOpen = true;
+      resolve;
     })
-    return true;
-  }
 
-  open() {
-    const proxyPath = path.join(process.env.LOCALPROXY_PATH || '', 'localproxy')
-    try {
-      const iotagent = spawn(proxyPath, [
-        '-r', this._region,
-        '-d', this._services.map(s => s + '=' + TunnelServices[s]).join(','),
-        '-t', this._token,
-      ]);
-      iotagent.on('error', (e: Error) => console.error(e));
-      iotagent.on('close', (e: Error) => console.info(e));
-      iotagent.stderr.on('data', (data: any) => {
-        console.error('stderr');
-        console.error(Buffer.from(data).toString());
-      });
-
-      iotagent.stdout.on('data', (data: any) => {
-        console.error('stdout');
-        console.error(Buffer.from(data).toString());
-      });
-    } catch (error) {
-      console.error('error spawning tunnel command', proxyPath, error)
-      this.isOpen = false;
-      return;
-    }
-    this.isOpen = true;
   }
   stop() {
     exec('sudo pkill localproxy');
