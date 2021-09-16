@@ -649,7 +649,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     if (job.status === 'QUEUED' || !job.statusDetails || !job.statusDetails.currentStep || job.statusDetails.currentStep === 'requested') {
       const scheduledJobRequest = job.Progress(0.01, 'scheduled');
       scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
-      scheduledJobRequest.statusDetails.message = 'update scheduled for next maintenance';
+      scheduledJobRequest.statusDetails.message = 'update scheduled';
       jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
     }
     if (job.statusDetails?.currentStep === 'scheduled') {
@@ -847,8 +847,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async update(job: Job): Promise<Job> {
     return new Promise(async (resolve, reject) => {
       try {
-        if (this.isNotOperating || job.jobDocument.isForced) {
+        if (this.isNotOperating || job.jobDocument.option === JobOption.forced || job.jobDocument.option === JobOption.hard) {
           log('server is in state ' + this.state + ' -> update can be executed now')
+          if (job.jobDocument.option === JobOption.hard) {
+            await this.waitForOrdersToFinish(10);
+          }
           await this.executeUpdate(job);
           resolve(job)
         } else {
