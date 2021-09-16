@@ -7,7 +7,7 @@ import { Job, jobUpdate, StatusDetails, JobOption } from './job'
 import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
 import { SessionCredentials } from './sessionCredentials';
 import { Tunnel } from './tunnel'
-import { log, warn, info, error } from './log'
+import { log, warn, info, error, debug } from './log'
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -229,8 +229,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return new Promise((resolve) => {
 
       // check for local proxy
-
-
 
       // list all running containers
       docker.listContainers((err: any, response: Array<Dockerode.ContainerInfo>) => {
@@ -482,6 +480,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === 'upload-env') {
         return await this.uploadEnvHandler(job)
       }
+      if (operation === 'reload-config') {
+        return await this.reloadConfigHandler(job)
+      }
 
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
@@ -494,6 +495,44 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
+  }
+  async reloadConfigHandler(job: Job) {
+    debug('reload config job received', job)
+    jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
+
+    const currenState = this._state;
+
+    const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`
+    log('triggering config reload', reloadUrl);
+    try {
+      await axios.post(reloadUrl)
+    } catch (error) {
+      warn('error reloading config', error)
+      const fail = job.Fail('error reloading config', "AXXXX");
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      return;
+    }
+    const option = job.jobDocument.option || "soft"
+    if (option === "soft") {
+      jobUpdate(job.jobId, job.Succeed("reloaded config, will take effect after next startup"), this._thingName, this._connection);
+      return;
+    }
+    let progress = job.Progress(0.3, "waiting for orders to be finished");
+    jobUpdate(job.jobId, progress, this._thingName, this._connection);
+    if (option === "hard") {
+      await this.waitForOrdersToFinish(10);
+    }
+    progress = job.Progress(0.6, "all orders finished");
+    jobUpdate(job.jobId, progress, this._thingName, this._connection);
+    await this.shutdownGracefully(10);
+    await sleep(20 * 1000);
+    await this.start();
+
+    if (currenState !== 'NeverInitialized') {
+      await this.startBoxNow();
+    }
+
+    jobUpdate(job.jobId, job.Succeed("reloaded config and restarted application"), this._thingName, this._connection);
   }
 
   private getEnvPath() {
@@ -625,37 +664,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
-  // async cleanStartHandler(job: Job) {
-  //   if (job.status !== 'QUEUED') {
-  //     return;
-  //   }
-  //   try {
-  //     jobUpdate(job.jobId, job.Progress(0.2, "registered"), this._thingName, this._connection);
-  //     await this.stop();
-  //     jobUpdate(job.jobId, job.Progress(0.4, "stopped containers"), this._thingName, this._connection);
-  //     await this.start();
-  //     jobUpdate(job.jobId, job.Progress(0.6, "started containers"), this._thingName, this._connection);
-  //     await sleep(15 * 1000);
-  //     jobUpdate(job.jobId, job.Progress(0.8, "waited for startup"), this._thingName, this._connection);
-  //     await this.startBoxNow();
-  //     if (this.state === ServerState.Okay) {
-  //       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
-  //     } else {
-  //       const startTimer = setTimeout(() => {
-  //         error('server was not started after 15 minutes')
-  //         jobUpdate(job.jobId, job.Fail('not started after 15 minutes', "AXXXX"), this._thingName, this._connection);
-  //       }, 15 * 60 * 1000);
-  //       this.once('okay', () => {
-  //         clearTimeout(startTimer);
-  //         jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
-  //       })
-  //     }
-  //   } catch (err) {
-  //     error('error while starting box')
-  //     jobUpdate(job.jobId, job.Fail(JSON.stringify(err), "AXXXX"), this._thingName, this._connection);
-  //   }
-  // }
-
   async shutdownHandler(job: Job) {
     if (job.status !== 'QUEUED') return;
     try {
@@ -737,22 +745,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await this.sleep(20 * 1000);
       }
       try {
-        // const timeout = setTimeout(() => {
-        //   warn('could not start box after 20 minutes, box in state: ' + this.state)
-        //   reject();
-        // }, 20 * 60 * 1000);
         this.once(ServerEvents.okay, () => {
-          // clearTimeout(timeout);
           const success = job.Succeed();
           jobUpdate(job.jobId, success, this._thingName, this._connection);
           resolve(true);
         });
-        // this.once(ServerEvents.fatalError, () => {
-        //   clearTimeout(timeout);
-        //   const fail = job.Fail('server init resulted in fatal failure', "AXXXX");
-        //   jobUpdate(job.jobId, fail, this._thingName, this._connection);
-        //   reject;
-        // });
+
         log('sending start command now')
         await this.startBoxNow();
       } catch (err) {
@@ -1007,21 +1005,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
       try {
 
-        log('downloading updates')
-        const setCredentials = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; "
-        await awaitableExec(setCredentials + "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull", {
-          cwd: this._serverPath
-        })
-        progress = 0.5;
+        await this.stopContainers(undefined);
+        progress = 0.4;
         if (job) {
-          let progressRequest = job.Progress(progress, 'downloaded updates');
+          let progressRequest = job.Progress(progress, 'stopped applications');
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 
-        await this.stopContainers(undefined);
+        log('downloading updates')
+        const command = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; " + "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull";
+        debug('download command', command)
+        await awaitableExec(command, {
+          cwd: this._serverPath
+        })
         progress = 0.7;
         if (job) {
-          let progressRequest = job.Progress(progress, 'stopped applications');
+          let progressRequest = job.Progress(progress, 'downloaded updates');
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 

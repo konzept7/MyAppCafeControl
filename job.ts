@@ -3,6 +3,7 @@
 // ********************************************
 
 import { mqtt } from 'aws-iot-device-sdk-v2';
+import { info } from './log'
 
 function baseJobTopic(thingName: string) {
   return `$aws/things/${thingName}/jobs/`;
@@ -50,11 +51,11 @@ class Job {
   jobDocument!: JobDocument;
   statusDetails: StatusDetails | undefined;
   public Progress(progress: number | undefined, step: string | undefined): JobRequest {
-    console.log('progressing job with id ' + this.jobId)
-    if (step) console.log('job is progressed with step', step)
+    info('progressing job with id ' + this.jobId)
+    if (step) info('job is progressed with step', step)
     this.status = 'IN_PROGRESS';
     if (progress) {
-      console.log('progress', progress)
+      info('progress', progress)
       this.statusDetails = new StatusDetails();
       this.statusDetails.progress = progress;
       this.statusDetails.currentStep = step;
@@ -62,7 +63,7 @@ class Job {
     return new JobRequest(this);
   }
   public Succeed(details: string | undefined = undefined): JobRequest {
-    console.log('succeeding job with id ' + this.jobId)
+    info('succeeding job with id ' + this.jobId)
     this.status = 'SUCCEEDED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.progress = 1;
@@ -70,7 +71,7 @@ class Job {
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
-    console.log('failing job with id ' + this.jobId, reason)
+    info('failing job with id ' + this.jobId, reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.message = reason;
@@ -82,7 +83,7 @@ class Job {
   // for example if a job was canceled or aborted
   // if a job was cancelled, the promise will be rejected
   public listenToJobEvents(connection: mqtt.MqttClientConnection) {
-    console.log('subscribing to job updates for job ' + this.jobId)
+    info('subscribing to job updates for job ' + this.jobId)
     const baseTopic = "$aws/events/job/"
     return new Promise((resolve, reject) => {
       // cancelled job
@@ -105,7 +106,7 @@ class JobRequest {
 
 // sends an update for the job to aws iot
 function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, connection: mqtt.MqttClientConnection): void {
-  console.log('sending job update', jobRequest);
+  info('sending job update', jobRequest);
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
 }
 
