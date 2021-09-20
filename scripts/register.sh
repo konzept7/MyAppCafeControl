@@ -9,6 +9,7 @@ fi
 
 read -p "Enter name for new thing: " thingName
 read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
+read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
 
 # TODO: check type
 
@@ -54,7 +55,6 @@ cd ~/srv/MyAppCafeControl
 npm install
 npm run build
 
-
 # get a new certificate
 echo "Creating keys and certificates"
 cd ~/srv/MyAppCafeControl
@@ -81,8 +81,9 @@ echo "Attaching principal to thing"
 aws iot attach-thing-principal --region $region --thing-name $thingName --principal $certArn
 
 # add thing to group
-echo "Adding thing to thing-group"
-aws iot add-thing-to-thing-group --region $region --thing-group-name MAC_Server_Debug --thing-name $thingName
+echo "Adding thing to thing-groups"
+aws iot add-thing-to-thing-group --region $region --thing-group-name boxes --thing-name $thingName
+aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName
 
 # create role alias
 echo "creating role alias"

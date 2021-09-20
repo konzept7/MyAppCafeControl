@@ -156,6 +156,10 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         echo "Installing docker-compose"
         sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev -y
         sudo pip3 install docker-compose==1.26.0
+        (crontab -l ; echo "0 4 * * 0 /usr/bin/docker system prune -f")| crontab -
+
+        echo "Installing cmake"
+        sudo apt-get install cmake -y
     fi
     echo '-----------------------------------------------------------'
 fi
