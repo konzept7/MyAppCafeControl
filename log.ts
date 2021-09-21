@@ -8,30 +8,28 @@ const time = () => {
 
 export const warn = (message: string, object: any = undefined) => {
   object
-    ? console.log(`WARN [${time()}]: ${chalk.bgYellow.bold.black(message)}`, chalk.bgBlack.white(JSON.stringify(object)))
-    : console.log(`WARN [${time()}]: ${chalk.bgYellow.bold.black(message)}`)
+    ? console.log(`${chalk.bgYellow.bold.black('WARN')} [${time()}]: ${message}`, chalk.bgBlack.white(JSON.stringify(object)))
+    : console.log(`${chalk.bgYellow.bold.black('WARN')} [${time()}]: ${message}`)
 }
 export const info = (message: string, object: any = undefined) => {
   object
-    ? console.log(`INFO [${time()}]: ${chalk.bgCyanBright.black(message)}`, chalk.bgBlack.white(JSON.stringify(object)))
-    : console.log(`INFO [${time()}]: ${chalk.bgCyanBright.black(message)}`)
+    ? console.log(`${chalk.bgCyanBright.black('INFO')} [${time()}]: ${message}`, chalk.bgBlack.white(JSON.stringify(object)))
+    : console.log(`${chalk.bgCyanBright.black('INFO')} [${time()}]: ${message}`)
 
 }
 export const error = (message: string, object: any = undefined) => {
   object
-    ? console.log(`ERR  [${time()}]: ${chalk.bgRed.bold.white(message)}`, chalk.bgBlack.white(JSON.stringify(object)))
-    : console.log(`ERR  [${time()}]: ${chalk.bgRed.bold.white(message)}`)
+    ? console.log(`${chalk.bgRed.bold.white('ERR')}  [${time()}]: ${message}`, chalk.bgBlack.white(JSON.stringify(object)))
+    : console.log(`${chalk.bgRed.bold.white('ERR')}  [${time()}]: ${message}`)
 }
 export const log = (message: string, object: any = undefined) => {
   object
-    ? console.log(`INFO [${time()}]: ${chalk.bgWhite.black(message)}`, chalk.bgBlack.white(JSON.stringify(object)))
-    : console.log(`INFO [${time()}]: ${chalk.bgWhite.black(message)}`)
+    ? console.log(`${chalk.bgWhite.black('INFO')} [${time()}]: ${message}`, chalk.bgBlack.white(JSON.stringify(object)))
+    : console.log(`${chalk.bgWhite.black('INFO')} [${time()}]: ${message}`)
 }
 export const debug = (message: string, object: any = undefined) => {
   if (process.env.DEBUG) {
-    object
-      ? console.log(`INFO [${time()}]: ${chalk.bgWhite.black(message)}`, chalk.bgBlack.white(JSON.stringify(object)))
-      : console.log(`INFO [${time()}]: ${chalk.bgWhite.black(message)}`)
+    log(message, object);
   }
 }
 

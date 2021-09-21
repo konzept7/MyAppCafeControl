@@ -93,6 +93,21 @@ echo "downloading current solution"
 aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
 docker-compose pull
 
+echo "adding public key to authorized keys"
+# Define the filename
+mkdir -p /home/pi/ssh/
+touch /home/pi/ssh/authorized_keys
+aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub - >> /home/pi/ssh/authorized_keys
+
+# Type the text that you want to append
+read -p "Enter the text that you want to append:" newtext
+
+# Check the new text is empty or not
+if [ "$newtext" != "" ]; then
+      # Append the text by using '>>' symbol
+      echo $newtext >> $filename
+fi
+
 echo ""
 echo "# ********************************************"
 echo "# *** Registration complete *** "

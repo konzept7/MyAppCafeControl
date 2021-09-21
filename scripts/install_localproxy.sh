@@ -44,8 +44,8 @@ echo '1. Installing ZLIB'
 sudo apt install -y zlibc
 
 echo '2. Installing Boost'
-wget https://boostorg.jfrog.io/artifactory/main/release/1.69.0/source/boost_1_69_0.tar.gz -O /tmp/boost.tar.gz
-tar xzvf /tmp/boost.tar.gz
+wget https://boostorg.jfrog.io/artifactory/main/release/1.69.0/source/boost_1_69_0.tar.gz -O /home/pi/dependencies/boost.tar.gz
+tar xzvf /home/pi/dependencies/boost.tar.gz
 cd boost_1_69_0
 ./bootstrap.sh
 sudo ./b2 install
@@ -70,6 +70,7 @@ echo
 
 cd /home/pi/
 git clone https://github.com/aws-samples/aws-iot-securetunneling-localproxy
+git checkout a09805af404e254e5f93908db30f461b55690366
 cd aws-iot-securetunneling-localproxy
 mkdir build
 cd build
