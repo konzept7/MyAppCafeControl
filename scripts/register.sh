@@ -82,7 +82,7 @@ aws iot attach-thing-principal --region $region --thing-name $thingName --princi
 
 # add thing to group
 echo "Adding thing to thing-groups"
-aws iot add-thing-to-thing-group --region $region --thing-group-name boxes --thing-name $thingName
+aws iot add-thing-to-thing-group --region $region --thing-group-name box --thing-name $thingName
 aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName
 
 # create role alias
@@ -97,7 +97,8 @@ echo "adding public key to authorized keys"
 # Define the filename
 mkdir -p /home/pi/ssh/
 touch /home/pi/ssh/authorized_keys
-aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub - >> /home/pi/ssh/authorized_keys
+publicKey=$(aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub -)
+$publicKey >> /home/pi/ssh/authorized_keys
 
 # Type the text that you want to append
 read -p "Enter the text that you want to append:" newtext

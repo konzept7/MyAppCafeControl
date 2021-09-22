@@ -70,8 +70,8 @@ echo
 
 cd /home/pi/
 git clone https://github.com/aws-samples/aws-iot-securetunneling-localproxy
-git checkout a09805af404e254e5f93908db30f461b55690366
 cd aws-iot-securetunneling-localproxy
+git checkout a09805af404e254e5f93908db30f461b55690366
 mkdir build
 cd build
 cmake ../

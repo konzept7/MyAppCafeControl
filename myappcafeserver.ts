@@ -1008,7 +1008,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
       try {
 
-        await this.stopContainers(undefined);
+        await awaitableExec('docker-compose ' + this.composeFile + ' stop', {
+          cwd: this._serverPath
+        })
         progress = 0.4;
         if (job) {
           let progressRequest = job.Progress(progress, 'stopped applications');
@@ -1028,7 +1030,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
 
         log('starting applications after update')
-        await awaitableExec('docker-compose' + this.composeFile + ' up -d ' + this._containers.filter(container => !container.includes("myappcafeserver")).join(' '), {
+        await awaitableExec('docker-compose' + this.composeFile + ' up -d', {
           cwd: this._serverPath
         })
         log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
@@ -1039,8 +1041,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         progress = 0.9;
         log('all applications restarted, waiting 2 minutes for all to settle')
         await sleep(2 * 60 * 1000);
-        log('sanitized the shutdown')
         await axios.post(this._url + 'init/sanitize-soft');
+        log('sanitized the shutdown')
         if (job) {
           let progressRequest = job.Progress(progress, 'restarted applications');
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
