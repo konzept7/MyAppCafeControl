@@ -10,6 +10,7 @@ fi
 read -p "Enter name for new thing: " thingName
 read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
+read -p "Enter the new cognito password for the box : " password
 
 # TODO: check type
 
@@ -42,6 +43,7 @@ if [[ "$thingType" == "Server" ]]; then
   echo "VUE_APP_PLU_PORT=8000" >> .env
   echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
   echo "VUE_APP_LANGUAGE=$language"
+  echo "COGNITO_PASSWORD"=$password
 
 fi
 
@@ -92,6 +94,10 @@ aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::31184202
 echo "downloading current solution"
 aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
 docker-compose pull
+
+echo "creating cognito user"
+aws cognito-idp admin-create-user --user-pool-id eu-central-1_7iLxD02o9 --username $thingName@myapp.cafe --user-attributes Name=email,Value=$thingName@myapp.cafe Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL
+aws cognito-idp admin-set-user-password --user-pool-id eu-central-1_7iLxD02o9 --username $thingname@myapp.cafe --password $password
 
 echo "adding public key to authorized keys"
 # Define the filename

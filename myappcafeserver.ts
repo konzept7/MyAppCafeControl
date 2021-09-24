@@ -408,8 +408,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
         log('waited for server to be up, now sending init commands');
         await axios.post(this._url + 'init/sanitize');
-        log('sanitized the shutdown, just in case')
-        log('waiting 5 seconds until init command')
+        log('sanitized the shutdown, just in case');
+        log('waiting 5 seconds until init command');
         this.once(ServerEvents.okay, () => {
           log('server seems to be okay after init');
           resolve(true)
@@ -1017,6 +1017,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 
+        await sleep(10 * 1000);
+
         log('downloading updates')
         const command = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; " + "aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull";
         debug('download command', command)
@@ -1029,18 +1031,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
 
-        log('starting applications after update')
+        await sleep(20 * 1000);
+        log('starting applications after update in 20 seconds')
         await awaitableExec('docker-compose' + this.composeFile + ' up -d', {
           cwd: this._serverPath
         })
-        log('restarted all containers, except myappcafeserver. waiting 30 seconds for config-provider to have downloaded all files.')
-        await sleep(30 * 1000)
+        log('restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files.')
+        await sleep(20 * 1000)
         await awaitableExec('docker-compose' + this.composeFile + ' up -d myappcafeserver', {
           cwd: this._serverPath
         })
         progress = 0.9;
-        log('all applications restarted, waiting 2 minutes for all to settle')
-        await sleep(2 * 60 * 1000);
+        log('all applications restarted, waiting 20 seconds for all to settle')
+        await sleep(20 * 1000);
         await axios.post(this._url + 'init/sanitize-soft');
         log('sanitized the shutdown')
         if (job) {
