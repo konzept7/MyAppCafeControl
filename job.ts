@@ -98,19 +98,23 @@ class Job {
 class JobRequest {
   status!: string;
   statusDetails: StatusDetails | undefined;
+  jobId!: string
+  operation!: string
   constructor(job: Job) {
     this.status = job.status;
     this.statusDetails = job.statusDetails;
+    this.jobId = job.jobId;
+    this.operation = job.jobDocument.operation;
   }
 }
 
+const customUpdateTopic = (thingName: string) => `mac/jobs/${thingName}/update`
 // sends an update for the job to aws iot
 function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, connection: mqtt.MqttClientConnection): void {
   info('sending job update', jobRequest);
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
+  connection.publish(customUpdateTopic(thingName), JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
 }
-
-
 
 enum JobOption {
   soft = "soft",

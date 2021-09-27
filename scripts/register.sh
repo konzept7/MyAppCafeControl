@@ -96,8 +96,14 @@ aws ecr get-login-password --region eu-central-1 | docker login --username AWS -
 docker-compose pull
 
 echo "creating cognito user"
-aws cognito-idp admin-create-user --user-pool-id eu-central-1_7iLxD02o9 --username $thingName@myapp.cafe --user-attributes Name=email,Value=$thingName@myapp.cafe Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL
-aws cognito-idp admin-set-user-password --user-pool-id eu-central-1_7iLxD02o9 --username $thingname@myapp.cafe --password $password
+$userpool = eu-central-1_7iLxD02o9
+$clientid = 41bsovn23a01gv0ogt1ag2ih2p
+$username = $thingName@myapp.cafe
+aws cognito-idp admin-create-user --user-pool-id $userpool --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL --temporary-password K_v_MNJxbshEVbu2wfgXo
+
+# aws cognito-idp admin-initiate-auth --user-pool-id $userpool --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=K_v_MNJxbshEVbu2wfgXo
+# TODO: session must come from previous command
+# aws cognito-idp admin-respond-to-auth-challenge --user-pool-id $userpool --client-id $clientid --challenge-name NEW_PASSWORD_REQUIRED --challenge-responses NEW_PASSWORD=$password,USERNAME=$username --session $session
 
 echo "adding public key to authorized keys"
 # Define the filename
