@@ -99,11 +99,20 @@ echo "creating cognito user"
 $userpool = eu-central-1_7iLxD02o9
 $clientid = 41bsovn23a01gv0ogt1ag2ih2p
 $username = $thingName@myapp.cafe
-aws cognito-idp admin-create-user --user-pool-id $userpool --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL --temporary-password K_v_MNJxbshEVbu2wfgXo
+openssl rand -base64 16 | read $tempPass
+openssl rand -base64 16 | read $password
 
-# aws cognito-idp admin-initiate-auth --user-pool-id $userpool --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=K_v_MNJxbshEVbu2wfgXo
-# TODO: session must come from previous command
-# aws cognito-idp admin-respond-to-auth-challenge --user-pool-id $userpool --client-id $clientid --challenge-name NEW_PASSWORD_REQUIRED --challenge-responses NEW_PASSWORD=$password,USERNAME=$username --session $session
+echo "box cognito password is $password. please check if it set in env file"
+echo "COGNITO_PASSWORD=$password" >> .env
+
+aws cognito-idp admin-create-user --user-pool-id $userpool --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
+
+aws cognito-idp admin-initiate-auth --user-pool-id $userpool --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=$tempPass | jq -r ".Session" | read $session
+aws cognito-idp admin-respond-to-auth-challenge --user-pool-id $userpool --client-id $clientid --challenge-name NEW_PASSWORD_REQUIRED --challenge-responses NEW_PASSWORD=$password,USERNAME=$username --session $session
+aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name box
+aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name wawi
+aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name admin
+
 
 echo "adding public key to authorized keys"
 # Define the filename
