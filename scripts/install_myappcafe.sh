@@ -136,7 +136,7 @@ echo "Installing git..."
 sudo apt install -y git
 echo "Installing node..."
 cd /home/pi/
-curl -sSL https://deb.nodesource.com/setup_16.x | sudo bash -
+curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
 sudo apt install -y nodejs
 
 echo "Installing jq"

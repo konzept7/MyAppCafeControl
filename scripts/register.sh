@@ -7,10 +7,15 @@ if [[ -e "./.env" ]]; then
   exit 1
 fi
 
+echo "****************************************************************"
+echo "*** This script needs temporary session tokens for AWS access. "
+echo "*** Please prepare by calling 'aws sts get-session-token'"
+echo "*** from *your* host machine"
+echo "****************************************************************"
+
 read -p "Enter name for new thing: " thingName
 read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
-read -p "Enter the new cognito password for the box : " password
 
 # TODO: check type
 
@@ -39,12 +44,11 @@ if [[ "$thingType" == "Server" ]]; then
   echo "EVENTSTABLE=boxevents" >> .env
   echo "DOC_BUCKET=doc.myapp.cafe" >> .env
   echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> .env
-  echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy" >> .env
+  echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy/build/bin" >> .env
   echo "VUE_APP_PLU_PORT=8000" >> .env
   echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
   echo "VUE_APP_LANGUAGE=$language"
-  echo "COGNITO_PASSWORD"=$password
-
+  
 fi
 
 
@@ -84,7 +88,6 @@ aws iot attach-thing-principal --region $region --thing-name $thingName --princi
 
 # add thing to group
 echo "Adding thing to thing-groups"
-aws iot add-thing-to-thing-group --region $region --thing-group-name box --thing-name $thingName
 aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName
 
 # create role alias
@@ -96,39 +99,33 @@ aws ecr get-login-password --region eu-central-1 | docker login --username AWS -
 docker-compose pull
 
 echo "creating cognito user"
-$userpool = eu-central-1_7iLxD02o9
-$clientid = 41bsovn23a01gv0ogt1ag2ih2p
-$username = $thingName@myapp.cafe
-openssl rand -base64 16 | read $tempPass
-openssl rand -base64 16 | read $password
+aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName #
+userpool=eu-central-1_7iLxD02o9
+clientid=41bsovn23a01gv0ogt1ag2ih2p
+username=$thingName@myapp.cafe
+tempPass=$(openssl rand -base64 16)
+password=$(openssl rand -base64 16)
+
 
 echo "box cognito password is $password. please check if it set in env file"
 echo "COGNITO_PASSWORD=$password" >> .env
 
-aws cognito-idp admin-create-user --user-pool-id $userpool --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$region#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
+aws cognito-idp admin-create-user --user-pool-id $userpool --region $region --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$thingGroup#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
 
-aws cognito-idp admin-initiate-auth --user-pool-id $userpool --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=$tempPass | jq -r ".Session" | read $session
-aws cognito-idp admin-respond-to-auth-challenge --user-pool-id $userpool --client-id $clientid --challenge-name NEW_PASSWORD_REQUIRED --challenge-responses NEW_PASSWORD=$password,USERNAME=$username --session $session
-aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name box
-aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name wawi
-aws admin-add-user-to-group --user-pool-id $userpool --username $username --group-name admin
+session=$(aws cognito-idp admin-initiate-auth --user-pool-id $userpool --region $region --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=$tempPass | jq -r ".Session")
+echo "session token is $session"
+aws cognito-idp admin-respond-to-auth-challenge --region $region --user-pool-id $userpool --client-id $clientid --challenge-name NEW_PASSWORD_REQUIRED --challenge-responses NEW_PASSWORD=$password,USERNAME=$username --session $session
+aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $region --username $username --group-name box
+aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $region --username $username --group-name wawi
+aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $region --username $username --group-name admin
 
 
 echo "adding public key to authorized keys"
 # Define the filename
 mkdir -p /home/pi/ssh/
-touch /home/pi/ssh/authorized_keys
+touch /home/pi/.ssh/authorized_keys
 publicKey=$(aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub -)
-$publicKey >> /home/pi/ssh/authorized_keys
-
-# Type the text that you want to append
-read -p "Enter the text that you want to append:" newtext
-
-# Check the new text is empty or not
-if [ "$newtext" != "" ]; then
-      # Append the text by using '>>' symbol
-      echo $newtext >> $filename
-fi
+echo $publicKey >> /home/pi/.ssh/authorized_keys
 
 echo ""
 echo "# ********************************************"
