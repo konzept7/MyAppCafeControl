@@ -90,6 +90,7 @@ services:
       - "./logs:/app/Logs"
       - "/app/bin"
       - "events:/app/events"
+      - "certs:/app/certs"
     ports:
       - "5003:80"
       - "5002:5002"
@@ -113,6 +114,7 @@ services:
       - AWS_SECRET=${AWS_SECRET}
       - AWS_REGION=${AWS_REGION}
       - EVENTSTABLE=${EVENTSTABLE}
+      - COGNITO_PASSWORD=${COGNITO_PASSWORD}
   redis:
     image: redis:latest
     command: redis-server --appendonly yes

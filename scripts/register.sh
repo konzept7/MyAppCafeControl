@@ -73,10 +73,15 @@ echo "created certificate with ARN $certArn in region $region"
 aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
 echo "Get root certificates"
 sudo wget -O root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
+
+echo "Converting pem files to pfx"
+openssl pkcs12 -export -in me.cert.pem -inkey me.private.key -out me.cert.pfx -certfile root-CA.crt -passout pass:
+
 # attach policy
-echo "Attaching policy"
+echo "Attaching policies"
 aws iot attach-policy --region $region --target $certArn --policy-name TutorialThing-Policy
 aws iot attach-policy --region $region --target $certArn --policy-name AssumeRoleWithCertificate
+aws iot attach-policy --region $region --target $certArn --policy-name box-server-policy
 
 # new thing
 echo "Creating new thing"
@@ -91,8 +96,9 @@ echo "Adding thing to thing-groups"
 aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName
 
 # create role alias
-echo "creating role alias"
+echo "creating role aliases"
 aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
+aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-box-access-role --role-alias $thingName-iot-box-access-role-alias --credential-duration-seconds 3600
 
 echo "downloading current solution"
 aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
