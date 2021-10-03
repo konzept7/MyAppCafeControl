@@ -1,0 +1,10 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "iot:AssumeRoleWithCertificate",
+      "Resource": "arn:aws:iot:eu-central-1:311842024294:rolealias/${iot:Connection.Thing.ThingName}-iot-config-role-alias"
+    }
+  ]
+}

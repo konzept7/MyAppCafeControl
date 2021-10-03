@@ -1,0 +1,85 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": "logs:*",
+      "Resource": "arn:aws:logs:eu-central-1:311842024294:log-group:boxlogs:log-stream:*"
+    },
+    {
+      "Sid": "VisualEditor1",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListAccessPointsForObjectLambda",
+        "logs:GetLogRecord",
+        "s3:GetAccessPoint",
+        "dynamodb:ListTables",
+        "dynamodb:PurchaseReservedCapacityOfferings",
+        "s3:PutStorageLensConfiguration",
+        "logs:GetLogDelivery",
+        "logs:ListLogDeliveries",
+        "secretsmanager:GetRandomPassword",
+        "logs:DeleteResourcePolicy",
+        "dynamodb:DescribeReservedCapacityOfferings",
+        "logs:CancelExportTask",
+        "logs:DeleteLogDelivery",
+        "logs:DescribeQueryDefinitions",
+        "logs:PutDestination",
+        "logs:DescribeResourcePolicies",
+        "dynamodb:DescribeLimits",
+        "dynamodb:ListExports",
+        "logs:DescribeDestinations",
+        "logs:DescribeQueries",
+        "s3:PutAccountPublicAccessBlock",
+        "s3:ListAccessPoints",
+        "logs:PutDestinationPolicy",
+        "dynamodb:ListBackups",
+        "s3:ListJobs",
+        "logs:StopQuery",
+        "logs:TestMetricFilter",
+        "logs:DeleteDestination",
+        "logs:DeleteQueryDefinition",
+        "logs:PutQueryDefinition",
+        "s3:ListMultiRegionAccessPoints",
+        "dynamodb:ListStreams",
+        "s3:ListStorageLensConfigurations",
+        "logs:CreateLogDelivery",
+        "dynamodb:ListContributorInsights",
+        "logs:PutResourcePolicy",
+        "logs:DescribeExportTasks",
+        "s3:GetAccountPublicAccessBlock",
+        "logs:GetQueryResults",
+        "dynamodb:ListGlobalTables",
+        "s3:ListAllMyBuckets",
+        "logs:UpdateLogDelivery",
+        "dynamodb:DescribeReservedCapacity",
+        "s3:CreateJob",
+        "secretsmanager:ListSecrets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "VisualEditor2",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetResourcePolicy",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "s3:*",
+        "logs:*",
+        "dynamodb:*",
+        "execute-api:Invoke",
+        "secretsmanager:ListSecretVersionIds"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:*:311842024294:table/boxevents",
+        "arn:aws:execute-api:eu-central-1:311842024294:w5ly8horsb/*/*/*",
+        "arn:aws:execute-api:eu-central-1:311842024294:zzn85r98bi/*/*/*",
+        "arn:aws:logs:eu-central-1:311842024294:log-group:boxlogs*",
+        "arn:aws:secretsmanager:*:311842024294:secret:boxSecrets",
+        "arn:aws:s3:::*myapp.cafe*"
+      ]
+    }
+  ]
+}

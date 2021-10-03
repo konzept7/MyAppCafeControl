@@ -13,7 +13,7 @@ echo "*** Please prepare by calling 'aws sts get-session-token'"
 echo "*** from *your* host machine"
 echo "****************************************************************"
 
-read -p "Enter name for new thing: " thingName
+
 read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
 
@@ -27,6 +27,9 @@ export AWS_ACCESS_KEY_ID=$accessKey
 export AWS_SESSION_TOKEN=$sessionToken
 
 # TODO: export keys/token
+
+userpool=eu-central-1_7iLxD02o9
+clientid=41bsovn23a01gv0ogt1ag2ih2p
 
 isValidThing=0
 if [[ "$thingType" == "Server" ]]; then
@@ -48,7 +51,8 @@ if [[ "$thingType" == "Server" ]]; then
   echo "VUE_APP_PLU_PORT=8000" >> .env
   echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
   echo "VUE_APP_LANGUAGE=$language"
-  
+  echo "COGNITO_POOL=$userpool"
+  echo "COGNITO_CLIENT=$clientid"
 fi
 
 
@@ -98,7 +102,7 @@ aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup
 # create role alias
 echo "creating role aliases"
 aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
-aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-box-access-role --role-alias $thingName-iot-box-access-role-alias --credential-duration-seconds 3600
+aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-box-role --role-alias $thingName-iot-box-role-alias --credential-duration-seconds 43200
 
 echo "downloading current solution"
 aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
@@ -106,8 +110,7 @@ docker-compose pull
 
 echo "creating cognito user"
 aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName #
-userpool=eu-central-1_7iLxD02o9
-clientid=41bsovn23a01gv0ogt1ag2ih2p
+
 username=$thingName@myapp.cafe
 tempPass=$(openssl rand -base64 16)
 password=$(openssl rand -base64 16)

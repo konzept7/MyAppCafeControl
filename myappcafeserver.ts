@@ -8,6 +8,7 @@ import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
 import { SessionCredentials } from './sessionCredentials';
 import { Tunnel } from './tunnel'
 import { log, warn, info, error, debug } from './log'
+import { Rm, RobotTest } from './RobotTest';
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -366,12 +367,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async stopContainers(imageNames: Array<string> | undefined) {
-    const infos = await docker.listContainers();
-    for await (const info of infos) {
-      if (!info.Names.some(n => this._containers.some(i => i.includes(n)))) continue;
-      const container = docker.getContainer(info.Id);
-      await container.stop();
-    }
+    // const infos = await docker.listContainers();
+    // for await (const info of infos) {
+    //   if (!info.Names.some(n => this._containers.some(i => i.includes(n)))) continue;
+    //   const container = docker.getContainer(info.Id);
+    //   await container.stop();
+    // }
+    await awaitableExec('docker-compose ' + this.composeFile + ' stop', {})
     return true;
   }
 
@@ -477,6 +479,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.downloadEnvHandler(job)
       }
 
+      if (operation === 'robot-test') {
+        return await this.robotTestHandler(job)
+      }
+
       if (operation === 'upload-env') {
         return await this.uploadEnvHandler(job)
       }
@@ -496,6 +502,93 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     }
   }
+
+
+  async robotTestHandler(job: Job) {
+    debug('received robot test job')
+
+    if (this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) {
+      jobUpdate(job.jobId, job.Fail(`server is in state ${this._state}! we will not execute a robot test during operation`, "AXXXX"), this._thingName, this._connection)
+      return;
+    }
+
+    jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection);
+
+    if (this._state === ServerState.NeverInitialized) {
+      await this.shutdownGracefully(3);
+      await this.stop()
+    }
+
+    jobUpdate(job.jobId, job.Progress(0.02, "stopped containers"), this._thingName, this._connection);
+
+    const test = new RobotTest();
+    try {
+      if (!await test.prepare()) throw new Error("could not connect to robot")
+    } catch {
+      error('unable to prepare robot job - maybe robot could not connect?')
+      jobUpdate(job.jobId, job.Fail('unable to prepare robot test', "AXXXX"), this._thingName, this._connection)
+      return;
+    }
+    let numberOfMoves = test.AllSequences!.map(s => s.sequences).flat(2).length
+    jobUpdate(job.jobId, job.Progress(0.03, "stopped containers"), this._thingName, this._connection);
+    let currentProgress = 0.03
+    const tick = (move: Rm) => {
+      if (move.Retries > 0) numberOfMoves++;
+      currentProgress = 0.03 + 0.97 * test.Results.length / numberOfMoves;
+      move.print()
+      jobUpdate(job.jobId, job.Progress(currentProgress, move.toString()), this._thingName, this._connection)
+    }
+
+    test.on('move', (d) => tick(d))
+    test.on('sequence', (s) => {
+      info('*** SEQUENZ ABGESCHLOSSEN')
+      info('*** ' + s.name)
+      const allMoves = s.sequences.flat()
+
+      const totalMoves = allMoves.length + allMoves.reduce((rm: Rm, cv: number) => cv + rm.Retries, 0)
+      const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length
+      const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length
+      const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0).length
+
+      info('*** GESAMTZAHL:    ' + totalMoves)
+      info('*** ERFOLGREICH:   ' + success)
+      info('*** FEHLGESCHLAGEN ' + failed)
+      info('*** TIMEOUT:       ' + timedOut)
+
+      jobUpdate(job.jobId, job.Progress(currentProgress, `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
+
+      console.log()
+    })
+
+    await test.execute()
+
+
+    if (test.IsCancelled) {
+      jobUpdate(job.jobId, job.Fail("job was cancelled", "AXXXX"), this._thingName, this._connection)
+
+      return;
+    }
+
+    info('*** TEST ABGESCHLOSSEN')
+    info('*** ')
+    const allMoves = test.Results;
+
+    const totalMoves = allMoves.length + allMoves.reduce((pv, rm) => pv + rm.Retries, 0)
+    const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length
+    const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length
+    const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0).length
+
+    info('*** GESAMTZAHL:    ' + totalMoves)
+    info('*** ERFOLGREICH:   ' + success)
+    info('*** FEHLGESCHLAGEN ' + failed)
+    info('*** TIMEOUT:       ' + timedOut)
+    console.log()
+    jobUpdate(job.jobId, job.Progress(currentProgress, `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
+    jobUpdate(job.jobId, job.Succeed(`total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
+
+  }
+
+
   async reloadConfigHandler(job: Job) {
     debug('reload config job received', job)
     jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);

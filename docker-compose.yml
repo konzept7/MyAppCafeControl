@@ -4,6 +4,7 @@ volumes:
   logs:
   redis-data:
   events:
+  certs:
 
 services:
   terminal:
@@ -30,6 +31,7 @@ services:
     volumes:
       - ".:/app"
       - "/app/node_modules"
+      - "certs:certs"
     ports:
       - "8000:8080"
     environment:
