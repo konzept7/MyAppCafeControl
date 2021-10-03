@@ -14,6 +14,7 @@ echo "*** from *your* host machine"
 echo "****************************************************************"
 
 
+read -p "Enter the thing name : " thingName
 read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
 
@@ -32,28 +33,28 @@ userpool=eu-central-1_7iLxD02o9
 clientid=41bsovn23a01gv0ogt1ag2ih2p
 
 isValidThing=0
-if [[ "$thingType" == "Server" ]]; then
-  isValidThing=1
-  echo "Registering a new thing as $thingType"
-  read -p "Enter hardware version [V1]: " hardwareVersion
-  read -p "Enter AWS region [eu-central-1, us-east-1]: " region
-  read -p "Enter the default language [de, en, es]: " language
-  echo "REGION=$region" >> .env
-  echo "TYPE=$thingType" >> .env
-  echo "THINGNAME=$thingName" >> .env
-  echo "VUE_APP_SERVER_IP=192.168.55.17" >> .env
-  echo "BOX_ID=$thingName" >> .env
-  echo "AWS_REGION=$region" >> .env
-  echo "EVENTSTABLE=boxevents" >> .env
-  echo "DOC_BUCKET=doc.myapp.cafe" >> .env
-  echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> .env
-  echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy/build/bin" >> .env
-  echo "VUE_APP_PLU_PORT=8000" >> .env
-  echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
-  echo "VUE_APP_LANGUAGE=$language"
-  echo "COGNITO_POOL=$userpool"
-  echo "COGNITO_CLIENT=$clientid"
+if [[ "$thingType" != "Server" ]]; then
+  return 7
 fi
+echo "Registering a new thing as $thingType"
+read -p "Enter hardware version [V1]: " hardwareVersion
+read -p "Enter AWS region [eu-central-1, us-east-1]: " region
+read -p "Enter the default language [de, en, es]: " language
+echo "REGION=$region" >> .env
+echo "TYPE=$thingType" >> .env
+echo "THINGNAME=$thingName" >> .env
+echo "VUE_APP_SERVER_IP=192.168.55.17" >> .env
+echo "BOX_ID=$thingName" >> .env
+echo "AWS_REGION=$region" >> .env
+echo "EVENTSTABLE=boxevents" >> .env
+echo "DOC_BUCKET=doc.myapp.cafe" >> .env
+echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> .env
+echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy/build/bin" >> .env
+echo "VUE_APP_PLU_PORT=8000" >> .env
+echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
+echo "VUE_APP_LANGUAGE=$language"
+echo "COGNITO_POOL=$userpool"
+echo "COGNITO_CLIENT=$clientid"
 
 
 # ********************************************

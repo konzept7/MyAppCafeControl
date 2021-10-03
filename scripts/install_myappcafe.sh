@@ -181,7 +181,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
         sudo sed /boot/config.txt -i -e "s/^\(#\|\)hdmi_group=.*/hdmi_group=2/"
         sudo sed /boot/config.txt -i -e "s/^\(#\|\)hdmi_mode=.*/hdmi_mode=87\nhdmi_cvt=1360 768 60/"
         # modify resolution of browser to fit to compatibilty mode - see https://www.raspberrypi.org/documentation/configuration/config-txt/pi4-hdmi.md
-        $resolution="1360,768"
+        resolution="1360,768"
     fi
 
 
