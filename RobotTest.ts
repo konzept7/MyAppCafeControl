@@ -280,13 +280,16 @@ export class RobotTest extends EventEmitter {
             const wait = new Promise((resolve) => {
               this.once('data', (r) => {
                 move.Response = r;
+                move.Result = move.Command === r + "0" ? RmResult.Success : RmResult.Failure
                 move.ExecutionTime = startTime.getMilliseconds() - new Date().getMilliseconds()
                 resolve(r)
               })
             });
 
             await Promise.race([wait, sleep(this.Timeout)])
-
+            if (!move.Response) {
+              RmResult.Timeout
+            }
             this.Results.push(move);
             results.push(move);
             this.emit('move', move)
