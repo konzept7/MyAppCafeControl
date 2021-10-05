@@ -280,7 +280,7 @@ export class RobotTest extends EventEmitter {
             const wait = new Promise((resolve) => {
               this.once('data', (r) => {
                 move.Response = r;
-                move.Result = move.Command === r + "0" ? RmResult.Success : RmResult.Failure
+                move.Result = move.Command === r.trim() + "0" ? RmResult.Success : RmResult.Failure
                 move.ExecutionTime = startTime.getMilliseconds() - new Date().getMilliseconds()
                 resolve(r)
               })
