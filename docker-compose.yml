@@ -4,7 +4,6 @@ volumes:
   logs:
   redis-data:
   events:
-  certs:
 
 services:
   terminal:
@@ -31,7 +30,6 @@ services:
     volumes:
       - ".:/app"
       - "/app/node_modules"
-      - "certs:certs"
     ports:
       - "8000:8080"
     environment:
@@ -92,7 +90,6 @@ services:
       - "./logs:/app/Logs"
       - "/app/bin"
       - "events:/app/events"
-      - "certs:/app/certs"
     ports:
       - "5003:80"
       - "5002:5002"
@@ -118,7 +115,7 @@ services:
       - EVENTSTABLE=${EVENTSTABLE}
       - COGNITO_PASSWORD=${COGNITO_PASSWORD}
   redis:
-    image: redis:latest
+    image: redis@sha256:9f7be45667d76270a885e6f3b4050bb5ab154845aa32c2d0dbfa9a93bf8a2391
     command: redis-server --appendonly yes
     container_name: redis
     restart: unless-stopped
