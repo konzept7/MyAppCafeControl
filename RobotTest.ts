@@ -299,7 +299,20 @@ export class RobotTest extends EventEmitter {
           }
         }
       }
-      this.emit('sequence', sequences)
+      this._socket?.write("97");
+      await new Promise((resolve) => {
+        this.once('data', () => {
+          resolve(true)
+        })
+      })
+      this.emit('sequence', sequences);
+      await sleep(90 * 1000);
+      this._socket?.write("97");
+      await new Promise((resolve) => {
+        this.once('data', () => {
+          resolve(true)
+        })
+      })
     }
     this.emit('finish')
 

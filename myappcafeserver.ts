@@ -393,7 +393,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
 
-  async startBoxNow(): Promise<boolean> {
+  async initBoxNow(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
       log('got request to start box, current state: ' + this.state)
       if (this.state === ServerState.FatalError) {
@@ -555,7 +555,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       info('*** FEHLGESCHLAGEN ' + failed)
       info('*** TIMEOUT:       ' + timedOut)
 
-      jobUpdate(job.jobId, job.Progress(currentProgress, `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
+      jobUpdate(job.jobId, job.Progress(currentProgress, `*** SEQUENZ ABGESCHLOSSEN\ntotal: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}\nUm freizuräumen Notstopp innerhalb der nächsten 90 Sekunden drücken`), this._thingName, this._connection)
 
       console.log()
     })
@@ -593,7 +593,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     debug('reload config job received', job)
     jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
 
-    const currenState = this._state;
+    const previousState = this._state;
 
     const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`
     log('triggering config reload', reloadUrl);
@@ -607,6 +607,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
     const option = job.jobDocument.option || "soft"
     if (option === "soft") {
+      if (previousState === ServerState.NeverInitialized) {
+        await this.shutdownGracefully(10);
+        await sleep(20 * 1000);
+        await this.start();
+      }
       jobUpdate(job.jobId, job.Succeed("reloaded config, will take effect after next startup"), this._thingName, this._connection);
       return;
     }
@@ -621,8 +626,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     await sleep(20 * 1000);
     await this.start();
 
-    if (currenState !== 'NeverInitialized') {
-      await this.startBoxNow();
+    if (previousState === ServerState.Okay) {
+      await this.initBoxNow();
     }
 
     jobUpdate(job.jobId, job.Succeed("reloaded config and restarted application"), this._thingName, this._connection);
@@ -845,7 +850,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         });
 
         log('sending start command now')
-        await this.startBoxNow();
+        await this.initBoxNow();
       } catch (err) {
         error('error when initializing box', err)
         reject(err);
