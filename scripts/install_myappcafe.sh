@@ -8,7 +8,7 @@ echo '########################'
 echo
 
 if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "--h" ]]; then
-    echo 
+    echo
     echo "HELP"
     echo "    Install script to auto-configure pi to be integrated into MyAppCafé-Box."
     echo "    Use arguments to configure this pi to your liking."
@@ -16,7 +16,7 @@ if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1"
     echo "SYNTAX"
     echo "    install_myappcafe.sh PACKAGE HOSTNAME PASSWORD [RESOLUTION] [SERVERIP] [SERVERPORT] [STREAMNAME] [AWSACCESS] [AWSSECRET] [AWSREGION]"
     echo
-    echo "DESCRIPTION" 
+    echo "DESCRIPTION"
     echo "    PACKAGE     define generic software and config setup (see below)"
     echo "    HOSTNAME    hostname for this machine"
     echo "    PASSWORD    set password for user 'pi'"
@@ -41,7 +41,7 @@ if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1"
 fi
 if [[ "$1" == "--version" ]] || [[ "$1" == "--v" ]]; then
     echo "Version 1.4"
-    echo 
+    echo
     exit 0
 fi
 
@@ -243,8 +243,6 @@ if [[ "$installationPackage" == "camera" ]]; then
     sudo apt install -y openjdk-8-jdk
     sudo apt install -y cmake
     export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-armhf/
-    
-    #aws keys?
 
     cd /home/pi/
     git clone --recursive https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
@@ -261,6 +259,38 @@ if [[ "$installationPackage" == "camera" ]]; then
     export GST_PLUGIN_PATH=`pwd`build
 
     echo 'export GST_PLUGIN_PATH=$PATH:/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | sudo tee -a /home/.profile
+
+    echo 'Setting up service for cam-autostart'
+    # create shell script to launch cam
+    echo '#!/bin/bash' | sudo tee /home/pi/launch-cam.sh
+    echo 'export GST_PLUGIN_PATH=/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build'
+    echo 'gst-launch-1.0 v4l2src do-timestamp=TRUE device=/dev/video0 ! videobalance saturation=0.0 ! clockoverlay time-format="%D %H:%M:%S" halignment=right font-desc="Sans, 16" ! videoconvert ! video/x-raw,18rmat=I420,width=532,height=400,framerate=15/1 ! omxh264enc control-rate=1 target-bitrate=512000 periodicity-idr=45 inline-header=FALSE ! h264parse ! video/x-h264,stream-format=avc,alignment=au,width=532,height=400,framerate=15/1,profile=baseline ! kvssink stream-name="'$streamname'" access-key="'$awsaccess'" secret-key="'$awssecret'" aws-region="'$awsregion'"' | sudo tee -a /home/pi/launch-cam.sh
+    chmod ugo+x /home/pi/launch-cam.sh
+
+    # create script file
+    cd /home/pi/
+    sudo rm myappcafecamera.service
+    echo '[Unit]' | sudo tee -a myappcafecamera.service
+    echo 'Description=MyAppCafeCamera' | sudo tee -a myappcafecamera.service
+    echo 'After=network.target' | sudo tee -a myappcafecamera.service
+    echo '' | sudo tee -a myappcafecamera.service
+    echo '[Service]' | sudo tee -a myappcafecamera.service
+    echo 'ExecStart=/home/pi/launch-cam.sh' | sudo tee -a myappcafecamera.service
+    echo 'WorkingDirectory=/home/pi/' | sudo tee -a myappcafecamera.service
+    echo 'StandardOutput=inherit' | sudo tee -a myappcafecamera.service
+    echo 'StandardError=inherit' | sudo tee -a myappcafecamera.service
+    echo 'Restart=always' | sudo tee -a myappcafecamera.service
+    echo 'User=pi' | sudo tee -a myappcafecamera.service
+    echo 'Group=pi' | sudo tee -a myappcafecamera.service
+    echo '' | sudo tee -a myappcafecamera.service
+    echo '[Install]' | sudo tee -a myappcafecamera.service
+    echo 'WantedBy=multi-user.target' | sudo tee -a myappcafecamera.service
+
+    # reload services and start service
+    sudo mv myappcafecamera.service /etc/systemd/system/myappcafecamera.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable myappcafecamera.service
+    sudo systemctl start myappcafecamera.service
 fi
 
 
