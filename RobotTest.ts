@@ -69,10 +69,10 @@ const createSequences = () => {
   const gates = [Rp.Gate1, Rp.Gate2, Rp.Gate3, Rp.Gate4]
   const show = [Rp.WaveLeftGates, Rp.WaveRightGates, Rp.DrawRectangleLeft, Rp.DrawRectangleRight, Rp.DrumFrontLeftToBack, Rp.DrumFrontLeftToBackSecond]
 
-  const ctToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan)])
-  const ctToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan)])
-  const ctToIceToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan)])
-  const ctToIceToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan)])
+  const ctToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan, undefined, false, false)])
+  const ctToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan, undefined, false, false)])
+  const ctToIceToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan, undefined, false, false)])
+  const ctToIceToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan, undefined, false, false)])
 
   const numberOfCupTrays = cupTrays.length;
   const randomCupTray = () => cupTrays[Math.floor(Math.random() * numberOfCupTrays)]
@@ -131,6 +131,7 @@ export class Rm {
   }
 
   print = () => {
+    if (!this.IsCounted) return;
     if (this.IsSuccess) {
       info(this.toString())
     } else {
@@ -142,16 +143,20 @@ export class Rm {
   get IsSuccess() { return this.Result == RmResult.Success }
   Response?: string
   ExecutionTime?: Number
+  IsCounted!: boolean
+  IsSuccessNeeded!: boolean
   Start!: Rp
   End!: Rp
   Via?: Rp
   Retries = 0
   Result = RmResult.Unknown
 
-  constructor(start: Rp, end: Rp, via: Rp | undefined = undefined) {
+  constructor(start: Rp, end: Rp, via: Rp | undefined = undefined, isCounted = true, isSuccessNeeded = true) {
     this.Start = start;
     this.End = end;
     this.Via = via;
+    this.IsCounted = isCounted;
+    this.IsSuccessNeeded = isSuccessNeeded;
   }
 }
 
@@ -160,7 +165,7 @@ export enum RmResult {
   Failure = "FAILURE",
   Timeout = "TIMEOUT",
   Skipped = "SKIPPED",
-  Unknown = "Unknown"
+  Unknown = "UNKNOWN"
 }
 
 export class RobotTest extends EventEmitter {
@@ -294,25 +299,25 @@ export class RobotTest extends EventEmitter {
             results.push(move);
             this.emit('move', move)
             if (!move.IsSuccess) move.Retries++
-
             await sleep(1500);
+            if (!move.IsSuccessNeeded) break;
           }
         }
+        this._socket?.write("97");
+        await new Promise((resolve) => {
+          this.once('data', () => {
+            resolve(true)
+          })
+        })
+        this.emit('sequence', sequences);
+        await sleep(90 * 1000);
+        this._socket?.write("97");
+        await new Promise((resolve) => {
+          this.once('data', () => {
+            resolve(true)
+          })
+        })
       }
-      this._socket?.write("97");
-      await new Promise((resolve) => {
-        this.once('data', () => {
-          resolve(true)
-        })
-      })
-      this.emit('sequence', sequences);
-      await sleep(90 * 1000);
-      this._socket?.write("97");
-      await new Promise((resolve) => {
-        this.once('data', () => {
-          resolve(true)
-        })
-      })
     }
     this.emit('finish')
 

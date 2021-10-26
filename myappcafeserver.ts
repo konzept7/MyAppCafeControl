@@ -271,21 +271,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         }
         else {
           log('figure out how to handle preparation')
-          // warn('not all images found! current images:', this.customMyappcafeImages, this.images);
-          // warn('we\'ll try to build all images with docker-compose')
-          // try {
-          //   await this.executeUpdate(undefined);
-          // } catch (err) {
-          //   error('error executing update', err);
-          //   reject('error executing update\n' + err?.message);
-          // }
-          // this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
-          // const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
-          // if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
-          //   log('images for every custom container found!')
-          // } else {
-          //   reject("even after trying to build new, not every image was found")
-          // }
         }
         resolve(true);
       })
@@ -448,6 +433,17 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return Promise.reject();
       }
 
+      // if ("shadowCondition" in job.jobDocument && "state" in job.jobDocument.shadowCondition) {
+      //   const allowedConditions = job.jobDocument.shadowCondition.state.split('|').map((c: string) => c.trim() as ServerState)
+      //   debug('allowed conditions for current job are: ' + allowedConditions.join(', '))
+      //   if (!(allowedConditions.includes((c: ServerState) => this._state))) {
+      //     error('job will fail because it has a state condition that is not met by the current server state: ' + this._state)
+      //     const fail = job.Fail('job will fail because it has a state condition that is not met by the current server state: ' + this._state, "AXXX");
+      //     jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      //     return Promise.reject();
+      //   }
+      // }
+
       if (operation === 'update') {
         return await this.updateHandler(job);
       }
@@ -483,11 +479,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.robotTestHandler(job)
       }
 
+      if (operation === 'recover-robot') {
+        return await this.recoverRobotHanlder(job)
+      }
+
       if (operation === 'upload-env') {
         return await this.uploadEnvHandler(job)
       }
       if (operation === 'reload-config') {
         return await this.reloadConfigHandler(job)
+      }
+      if (operation === 'restart-device') {
+        return await this.restartDeviceHandler(job)
       }
 
       warn("unknown command sent to handler", job.jobDocument);
@@ -501,6 +504,26 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
+  }
+  async restartDeviceHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
+        throw new Error('no device defined')
+      }
+      await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('device could not be restarted', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+
+  }
+  recoverRobotHanlder(job: Job) {
+    debug('received recover robot job')
+
+
   }
 
 
@@ -545,10 +568,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       info('*** ' + s.name)
       const allMoves = s.sequences.flat()
 
-      const totalMoves = allMoves.length + allMoves.reduce((rm: Rm, cv: number) => cv + rm.Retries, 0)
-      const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length
-      const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length
-      const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0).length
+      const totalMoves = allMoves.filter((rm: Rm) => rm.IsCounted).length + allMoves.filter((rm: Rm) => rm.IsCounted).reduce((rm: Rm, cv: number) => cv + rm.Retries, 0)
+      const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess && rm.IsCounted).length
+      const timedOut = allMoves.filter((rm: Rm) => !rm.Response && rm.IsCounted).length
+      const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0 && rm.IsCounted).length
 
       info('*** GESAMTZAHL:    ' + totalMoves)
       info('*** ERFOLGREICH:   ' + success)
