@@ -91,7 +91,6 @@ services:
       - "./logs:/app/Logs"
       - "/app/bin"
       - "events:/app/events"
-      - "./logs:/app/Logs"
       - "./certs:/app/certs"
     ports:
       - "5003:80"
