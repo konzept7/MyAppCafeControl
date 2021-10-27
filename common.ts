@@ -2,30 +2,32 @@ import {
   exec,
   ExecOptions
 } from 'child_process';
+import { log, error } from './log'
+
 
 async function awaitableExec(command: string, options: ExecOptions): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = exec(command, options, (error, stdOut, stdErr) => {
-      if (error) {
-        console.error('error executing child process', error)
-        if (stdErr) console.error(stdErr)
-        console.log(stdOut)
+    const child = exec(command, options, (err, stdOut, stdErr) => {
+      log(stdOut)
+      if (stdErr) error(stdErr)
+      if (err) {
+        error('error executing child process', err)
         reject(error)
         return;
       }
     })
-    child.on('error', (error) => {
-      if (error) {
-        console.error('error executing child process', error)
+    child.on('error', (err) => {
+      if (err) {
+        error('error executing child process', error)
         reject(error)
         return
       }
     })
     child.on('message', (message) => {
-      console.log(message);
+      log(message.toString());
     })
     child.on('exit', (code) => {
-      console.log('child process exited with code ' + code)
+      log('child process exited with code ' + code)
       resolve(code || 0);
     })
   })
