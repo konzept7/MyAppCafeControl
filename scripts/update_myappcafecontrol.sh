@@ -43,6 +43,7 @@ fi
 sudo systemctl stop myappcafecontrol.service
 # pull current version
 cd /home/pi/srv/MyAppCafeControl
+git checkout .
 git pull origin master
 npm install
 npm run build
