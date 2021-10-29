@@ -17,13 +17,13 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     sudo rm myappcafecontrol.service
     echo '[Unit]' | sudo tee -a myappcafecontrol.service
     echo 'Description=MyAppCafeControl' | sudo tee -a myappcafecontrol.service
-    echo 'After=network.target' | sudo tee -a myappcafecontrol.service
+    echo 'After=network.target systemd-timesyncd' | sudo tee -a myappcafecontrol.service
     echo '' | sudo tee -a myappcafecontrol.service
     echo '[Service]' | sudo tee -a myappcafecontrol.service
     echo 'ExecStart=node /home/pi/srv/MyAppCafeControl/dist/index.js' | sudo tee -a myappcafecontrol.service
     echo 'WorkingDirectory=/home/pi/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
-    echo 'StandardOutput=inherit' | sudo tee -a myappcafecontrol.service
-    echo 'StandardError=inherit' | sudo tee -a myappcafecontrol.service
+    echo 'StandardOutput=/home/pi/srv/MyAppCafeControl/log.txt' | sudo tee -a myappcafecontrol.service
+    echo 'StandardError=/home/pi/srv/MyAppCafeControl/log.txt' | sudo tee -a myappcafecontrol.service
     echo 'Restart=always' | sudo tee -a myappcafecontrol.service
     echo 'User=pi' | sudo tee -a myappcafecontrol.service
     echo '' | sudo tee -a myappcafecontrol.service
