@@ -40,21 +40,21 @@ echo "Registering a new thing as $thingType"
 read -p "Enter hardware version [V1]: " hardwareVersion
 read -p "Enter AWS region [eu-central-1, us-east-1]: " region
 read -p "Enter the default language [de, en, es]: " language
-echo "REGION=$region" >> .env
-echo "TYPE=$thingType" >> .env
-echo "THINGNAME=$thingName" >> .env
-echo "VUE_APP_SERVER_IP=192.168.55.17" >> .env
-echo "BOX_ID=$thingName" >> .env
-echo "AWS_REGION=$region" >> .env
-echo "EVENTSTABLE=boxevents" >> .env
-echo "DOC_BUCKET=doc.myapp.cafe" >> .env
-echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> .env
-echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy/build/bin" >> .env
-echo "VUE_APP_PLU_PORT=8000" >> .env
-echo "VUE_APP_MAINSERVER_PORT=5002" >> .env
-echo "VUE_APP_LANGUAGE=$language"
-echo "COGNITO_POOL=$userpool"
-echo "COGNITO_CLIENT=$clientid"
+echo "REGION=$region" >> /home/pi/srv/MyAppCafeControl/.env
+echo "TYPE=$thingType" >> /home/pi/srv/MyAppCafeControl/.env
+echo "THINGNAME=$thingName" >> /home/pi/srv/MyAppCafeControl/.env
+echo "VUE_APP_SERVER_IP=192.168.55.17" >> /home/pi/srv/MyAppCafeControl/.env
+echo "BOXID=$thingName" >> /home/pi/srv/MyAppCafeControl/.env
+echo "AWS_REGION=$region" >> /home/pi/srv/MyAppCafeControl/.env
+echo "EVENTSTABLE=boxevents" >> /home/pi/srv/MyAppCafeControl/.env
+echo "DOC_BUCKET=doc.myapp.cafe" >> /home/pi/srv/MyAppCafeControl/.env
+echo "MYAPPCAFESERVER_PATH=/home/pi/srv/MyAppCafeControl/" >> /home/pi/srv/MyAppCafeControl/.env
+echo "LOCALPROXY_PATH=/home/pi/aws-iot-securetunneling-localproxy/build/bin" >> /home/pi/srv/MyAppCafeControl/.env
+echo "VUE_APP_PLU_PORT=8000" >> /home/pi/srv/MyAppCafeControl/.env
+echo "VUE_APP_MAINSERVER_PORT=5002" >> /home/pi/srv/MyAppCafeControl/.env
+echo "VUE_APP_LANGUAGE=$language" >> /home/pi/srv/MyAppCafeControl/.env
+echo "COGNITO_POOL=$userpool" >> /home/pi/srv/MyAppCafeControl/.env
+echo "COGNITO_CLIENT=$clientid" >> /home/pi/srv/MyAppCafeControl/.env
 
 
 # ********************************************
@@ -62,7 +62,7 @@ echo "COGNITO_CLIENT=$clientid"
 # ********************************************
 
 echo "installing packages for MyAppCafeControl"
-cd ~/srv/MyAppCafeControl
+cd /home/pi/srv/MyAppCafeControl
 npm install
 npm run build
 
@@ -127,7 +127,7 @@ password=$(openssl rand -base64 16)
 
 
 echo "box cognito password is $password. please check if it set in env file"
-echo "COGNITO_PASSWORD=$password" >> .env
+echo "COGNITO_PASSWORD=$password" >> /home/pi/srv/MyAppCafeControl/.env
 
 aws cognito-idp admin-create-user --user-pool-id $userpool --region $region --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$thingGroup#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
 

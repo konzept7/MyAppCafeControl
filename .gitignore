@@ -14,3 +14,4 @@ redis-data/dump.rdb
 redis-data/appendonly.aof
 jobs
 me.cert.pfx
+.DS_Store
