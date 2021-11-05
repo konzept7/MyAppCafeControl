@@ -82,11 +82,19 @@ sudo wget -O root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pe
 echo "Converting pem files to pfx"
 openssl pkcs12 -export -in me.cert.pem -inkey me.private.key -out me.cert.pfx -certfile root-CA.crt -passout pass:
 
+echo "copying certificates in certs folder"
+cp me.cert.pem ./certs/me.cert.pem
+cp me.cert.pfx ./certs/me.cert.pfx
+cp root-CA.crt ./certs/root-CA.crt
+cp me.private.key ./certs/me.private.key
+cp me.public.key ./certs/me.public.key
+
 # attach policy
 echo "Attaching policies"
 aws iot attach-policy --region $region --target $certArn --policy-name TutorialThing-Policy
 aws iot attach-policy --region $region --target $certArn --policy-name AssumeRoleWithCertificate
 aws iot attach-policy --region $region --target $certArn --policy-name box-server-policy
+aws iot attach-policy --region $region --target $certArn --policy-name configpolicy
 
 # new thing
 echo "Creating new thing"
@@ -102,6 +110,7 @@ aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup
 
 # create role alias
 echo "creating role aliases"
+aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-config-role --role-alias $thingName-iot-config-role-alias --credential-duration-seconds 3600
 aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-update-role --role-alias $thingName-iot-update-role-alias --credential-duration-seconds 3600
 aws iot create-role-alias --region eu-central-1 --role-arn arn:aws:iam::311842024294:role/iot-box-role --role-alias $thingName-iot-box-role-alias --credential-duration-seconds 43200
 
