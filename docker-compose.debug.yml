@@ -29,8 +29,8 @@ services:
     container_name: config-provider
     volumes:
       - ".:/app"
-      - "/app/node_modules"      
-      - "./certs:/app/certs"
+      - "/app/node_modules"    
+      - "./certs:/usr/src/app/certs"
     ports:
       - "8000:8080"
     environment:
