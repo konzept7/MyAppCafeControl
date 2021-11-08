@@ -215,7 +215,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   get isStarting(): boolean {
     return this.state === ServerState.Starting || this.state === ServerState.Restarting;
   }
-  get composeFile(): string { return "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? " --file docker-compose.x86.yml" : "" }
+  get composeFile(): string { return "PLATFORM" in process.env ? ` --file docker-compose.${process.env.PLATFORM}.yml ` : "" }
   get customMyappcafeImages(): Array<string> {
     let arr = ["status", "myappcafeserver", "config", "terminal", "display"]
     arr = arr.map(e => "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? e : e);
