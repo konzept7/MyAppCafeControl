@@ -746,7 +746,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
 
       try {
-        await axios.post(this._url + "setState/" + job.jobDocument.parameters["newstate"], undefined, { timeout: 10 * 1000 });
+        await axios.put(this._url + "setState/" + job.jobDocument.parameters["newstate"], undefined, { timeout: 10 * 1000 });
       } catch (err) {
         error('could not set server-state', err);
       }
