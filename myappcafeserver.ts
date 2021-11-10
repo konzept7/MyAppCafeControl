@@ -579,13 +579,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async trashMoveHandler(job: Job) {
     try {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        //throw new Error('no device defined')
-        job.jobDocument.parameters = {};
-        job.jobDocument.parameters["device"] = '03379';
+        throw new Error('no device defined')
       }
 
       const response = await axios.post(this._url + 'robot/trash/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
-
       if (response.status === 200) {
         jobUpdate(job.jobId, job.Succeed('trashmove for device successful'), this._thingName, this._connection)
         return
