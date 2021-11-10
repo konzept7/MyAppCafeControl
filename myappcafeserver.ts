@@ -577,7 +577,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
   async trashMoveHandler(job: Job) {
-    const response = await axios.post('http://192.168.155.17:5002/api/robot/trash/03392', null, { timeout: 30 * 1000 });
+    const response = await axios.post(this._url + 'robot/trash/03392', null, { timeout: 30 * 1000 });
     console.log(response);
     jobUpdate(job.jobId, job.Succeed('trashmove for device successful'), this._thingName, this._connection)
     return;
