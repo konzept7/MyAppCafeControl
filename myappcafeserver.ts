@@ -467,6 +467,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === 'shutdown') {
         return await this.shutdownHandler(job)
       }
+      if (operation === 'remove-orders') {
+        return await this.removeOrdersHandler(job);
+      }
 
       if (operation === 'pause') {
         return await this.pauseHandler(job)
@@ -644,14 +647,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async recoverRobotHandler(job: Job) {
-    jobUpdate(job.jobId, job.Progress(.3, 'connecting to redis'), this._thingName, this._connection)
-    const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
-    jobUpdate(job.jobId, job.Progress(.6, 'removing key isMoving'), this._thingName, this._connection)
-    client.del('isMoving')
-    jobUpdate(job.jobId, job.Progress(.9, 'removing key unrecoverable'), this._thingName, this._connection)
-    client.del('unrecoverable')
-    client.disconnect()
-    jobUpdate(job.jobId, job.Succeed('robot recovered'), this._thingName, this._connection)
+    try {
+      jobUpdate(job.jobId, job.Progress(.3, 'connecting to redis'), this._thingName, this._connection)
+      const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
+      jobUpdate(job.jobId, job.Progress(.6, 'removing key isMoving'), this._thingName, this._connection)
+      client.del('isMoving')
+      jobUpdate(job.jobId, job.Progress(.9, 'removing key unrecoverable'), this._thingName, this._connection)
+      client.del('unrecoverable')
+      client.disconnect()
+      jobUpdate(job.jobId, job.Succeed('robot recovered'), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('could not recover robot', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
   }
 
 
@@ -994,6 +1005,24 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
     } catch (err) {
       error('error shutting down application', err)
+    }
+  }
+
+
+  async removeOrdersHandler(job: Job) {
+    try {
+      jobUpdate(job.jobId, job.Progress(.5, 'connecting to redis'), this._thingName, this._connection)
+      const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
+      jobUpdate(job.jobId, job.Progress(.9, 'removing key orders'), this._thingName, this._connection)
+      client.del('orders')
+      client.disconnect()
+      jobUpdate(job.jobId, job.Succeed('removed orders'), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('could not remove orders', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
     }
   }
 
