@@ -999,7 +999,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async testBeverageHandler(job: Job) {
     let amount = 1;
-    if (job.jobDocument.parameters && !("amount" in job.jobDocument.parameters)) {
+    if (job.jobDocument.parameters && "amount" in job.jobDocument.parameters) {
       amount = parseInt(job.jobDocument.parameters["amount"])
     }
 
