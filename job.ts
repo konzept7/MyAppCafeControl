@@ -124,6 +124,8 @@ enum JobOption {
   unpause = "unpause",
   block = "block",
   unblock = "unblock",
+  deviceshutdown = "ShutDown",
+  devicedisabled = "Disabled",
 }
 
 export { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS, jobUpdate, StatusDetails, JobOption }

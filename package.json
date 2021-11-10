@@ -1,6 +1,6 @@
 {
   "name": "myappcafecontrol",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "./index.js",
   "scripts": {
@@ -24,6 +24,7 @@
     "events": "^3.3.0",
     "express": "^4.17.1",
     "fs": "0.0.1-security",
+    "ioredis": "^4.28.0",
     "ws": "^7.4.4",
     "yargs": "^16.2.0"
   },

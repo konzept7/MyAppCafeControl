@@ -1,3 +1,7 @@
+const ELASTICACHE_HOST = process.env.ELASTICACHE_HOST || 'localhost'
+const ELASTICACHE_PORT = process.env.ELASTICACHE_PORT || 6379
+
+
 import { ControllableProgram } from './controllableProgram'
 import EventEmitter from 'events';
 import axios from 'axios';
@@ -14,10 +18,13 @@ import { Rm, RobotTest } from './RobotTest';
 import Dockerode from 'dockerode';
 import { existsSync, readFile, writeFile } from 'fs';
 import path from 'path';
+import { JsonHubProtocol } from '@microsoft/signalr';
+
 
 var docker = new Dockerode();
 
 const signalR = require('@microsoft/signalr')
+const Redis = require('ioredis');
 
 export enum ServerState {
   closed = "closed",
@@ -478,9 +485,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === 'robot-test') {
         return await this.robotTestHandler(job)
       }
-
+      if (operation === 'robot command') {
+        return await this.robotCommandHandler(job)
+      }
       if (operation === 'recover-robot') {
-        return await this.recoverRobotHanlder(job)
+        return await this.recoverRobotHandler(job)
       }
 
       if (operation === 'upload-env') {
@@ -489,9 +498,29 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === 'reload-config') {
         return await this.reloadConfigHandler(job)
       }
+
+      if (operation === 'deactivate-device') {
+        return await this.deactivateDeviceHandler(job)
+      }
       if (operation === 'restart-device') {
         return await this.restartDeviceHandler(job)
       }
+
+      if (operation === 'trash') {
+        return await this.trashMoveHandler(job)
+      }
+
+      if (operation === 'set-start') {
+        return await this.setStartupHandler(job);
+      }
+      if (operation === 'remove-start') {
+        return await this.removeStartupHandler(job);
+      }
+
+      if (operation === 'message') {
+        return await this.messageHandler(job)
+      }
+
 
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
@@ -505,12 +534,76 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     }
   }
+
+  async checkDeviceHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
+        throw new Error('no device defined')
+      }
+      const response = await axios.post(this._url + 'devices/test/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      if (response.status === 200) {
+        jobUpdate(job.jobId, job.Succeed('device tested successfull'), this._thingName, this._connection)
+        return
+      }
+      jobUpdate(job.jobId, job.Fail('device-test returned fales', "AXXXX"), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('device could not be tested', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
+  async deactivateDeviceHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
+        throw new Error('no device defined')
+      }
+      const deactivationType = job.jobDocument.option || '';
+      const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
+      if (response.status === 200) {
+        jobUpdate(job.jobId, job.Succeed('device deactivated' + (deactivationType === 'Disabled' ? ' permanently' : '')), this._thingName, this._connection)
+        return
+      }
+      jobUpdate(job.jobId, job.Fail('device could not be deactivated', "AXXXX"), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('device could not be deactivated', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
+  async trashMoveHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
+        throw new Error('no device defined')
+      }
+      const response = await axios.post(this._url + 'robot/trash/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      if (response.status === 200) {
+        jobUpdate(job.jobId, job.Succeed('trashmove for device successful'), this._thingName, this._connection)
+        return
+      }
+      jobUpdate(job.jobId, job.Fail('trashmove could not be started', "AXXXX"), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('error performing trashmove', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
   async restartDeviceHandler(job: Job) {
     try {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
         throw new Error('no device defined')
       }
-      await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      const response = await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      if (response.status === 200) {
+        jobUpdate(job.jobId, job.Succeed('device restarted'), this._thingName, this._connection)
+        return
+      }
+      jobUpdate(job.jobId, job.Fail('device could not be restarted', "AXXXX"), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
       if (job.status !== 'FAILED') {
@@ -518,12 +611,37 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
-
   }
-  recoverRobotHanlder(job: Job) {
-    debug('received recover robot job')
 
+  async robotCommandHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("command" in job.jobDocument.parameters)) {
+        throw new Error('no command defined')
+      }
+      const response = await axios.post(this._url + 'robot/command/' + job.jobDocument.parameters["command"], null, { timeout: 30 * 1000 });
+      if (response.status === 200) {
+        jobUpdate(job.jobId, job.Succeed('robot command executed'), this._thingName, this._connection)
+        return
+      }
+      jobUpdate(job.jobId, job.Fail('robot command could not be executed', "AXXXX"), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('robot command could not be executed', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
 
+  async recoverRobotHandler(job: Job) {
+    jobUpdate(job.jobId, job.Progress(.3, 'connecting to redis'), this._thingName, this._connection)
+    const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
+    jobUpdate(job.jobId, job.Progress(.6, 'removing key isMoving'), this._thingName, this._connection)
+    client.del('isMoving')
+    jobUpdate(job.jobId, job.Progress(.9, 'removing key unrecoverable'), this._thingName, this._connection)
+    client.del('unrecoverable')
+    client.disconnect()
+    jobUpdate(job.jobId, job.Succeed('robot recovered'), this._thingName, this._connection)
   }
 
 
@@ -611,6 +729,27 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   }
 
+  async messageHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("message" in job.jobDocument.parameters)) {
+        throw new Error('no message given')
+      }
+
+      try {
+        await axios.post(this._url + "notifications/message/" + job.jobDocument.parameters["message"], undefined, { timeout: 10 * 1000 });
+      } catch (err) {
+        error('could not send message', err);
+      }
+
+      jobUpdate(job.jobId, job.Succeed('message sent'), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('could not send message', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
 
   async reloadConfigHandler(job: Job) {
     debug('reload config job received', job)
@@ -1022,12 +1161,46 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   }
 
+  async blockHandler(job: Job) {
+    log('got request to block/unblock upcoming orders', job)
+    if (this.state !== ServerState.Okay) {
+      const fail = job.Fail('application is not in a state where blocking/unblocking orders is allowed, current state: ' + this.state, "AXXXX");
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      return;
+    }
+
+    if (job.jobDocument.option === JobOption.block) {
+      log('got request to block upcoming orders', job)
+      if (this.state === ServerState.Okay) {
+        if (await this.toggleBlockOrders(true)) {
+          jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+          return
+        }
+        error('error while trying to block orders')
+        const fail = job.Fail('error while trying to block orders\n', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+        return
+      }
+      return;
+    }
+
+    // unblock
+    if (await this.toggleBlockOrders(false)) {
+      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+      return
+    }
+    error('error while trying to unblock orders')
+    const fail = job.Fail('error while trying to unblock orders\n', "AXXXX");
+    jobUpdate(job.jobId, fail, this._thingName, this._connection);
+  }
+
+
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
     log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
     const url = this._url + "block"
     try {
       if (block) {
-        await axios.post(url);
+        await axios.put(url);
         return true;
       } else {
         await axios.delete(url);
@@ -1071,6 +1244,30 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
+  }
+
+  async setStartupHandler(job: Job) {
+    if (!job.jobDocument.parameters || !("rebootTime" in job.jobDocument.parameters)) {
+      throw new Error('no rebootTime defined')
+    }
+
+    const rebootTime: Date = new Date(job.jobDocument.parameters["rebootTime"]);
+    const result = await axios.post(this._url + 'init/startup', { rebootTime: rebootTime.toISOString() })
+
+    if (result.status !== 200) {
+      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+      return
+    }
+    jobUpdate(job.jobId, job.Fail('could not set startup-time', 'AXXXX'), this._thingName, this._connection)
+  }
+
+  async removeStartupHandler(job: Job) {
+    const result = await axios.delete(this._url + 'init/startup')
+    if (result.status !== 200) {
+      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+      return
+    }
+    jobUpdate(job.jobId, job.Fail('could not remove startup-time', 'AXXXX'), this._thingName, this._connection)
   }
 
   async handleTunnel(tunnel: Tunnel) {
