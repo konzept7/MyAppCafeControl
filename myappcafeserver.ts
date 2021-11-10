@@ -483,7 +483,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === 'robot-test') {
         return await this.robotTestHandler(job)
       }
-      if (operation === 'robot command') {
+      if (operation === 'robot-command') {
         return await this.robotCommandHandler(job)
       }
       if (operation === 'recover-robot') {
@@ -497,13 +497,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.reloadConfigHandler(job)
       }
 
-      if (operation === 'check device') {
+      if (operation === 'check-device') {
         return await this.checkDeviceHandler(job)
       }
-      if (operation === 'deactivate device') {
+      if (operation === 'deactivate-device') {
         return await this.deactivateDeviceHandler(job)
       }
-      if (operation === 'restart device') {
+      if (operation === 'restart-device') {
         return await this.restartDeviceHandler(job)
       }
 
@@ -522,7 +522,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.messageHandler(job)
       }
 
-      if (operation === 'set server-state') {
+      if (operation === 'set-server-state') {
         return await this.serverStateHandler(job)
       }
 
@@ -554,7 +554,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, job.Succeed('device tested successfully'), this._thingName, this._connection)
         return
       }
-      jobUpdate(job.jobId, job.Fail('device-test returned fales', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(job.jobId, job.Fail('device-test returned false', "AXXXX"), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
       if (job.status !== 'FAILED') {
