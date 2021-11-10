@@ -589,7 +589,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         throw new Error('no device defined')
       }
       //      const response = await axios.post(this._url + 'robot/trash/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
-      const response = await axios.post('http://192.168.155.17:5002/api/robot/trash/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      const response = await axios.post('http://192.168.155.17:5002/api/robot/trash/03392', null, { timeout: 30 * 1000 });
       if (response.status === 200) {
         jobUpdate(job.jobId, job.Succeed('trashmove for device successful'), this._thingName, this._connection)
         return
