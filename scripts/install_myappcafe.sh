@@ -217,7 +217,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
     (crontab -l ; echo "@reboot /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
     # fallback solution for script-hang (nightly restart)
-    (crontab -l ; echo "30 2 * * * sudo systemctl restart /etc/systemd/system/myappcafecontrol.service") | crontab -
+    (crontab -l ; echo "30 2 * * * sudo systemctl restart myappcafecontrol.service") | crontab -
 
     # for display-only devices set up quiet/invisible boot
     if [[ "$installationPackage" == "display" ]]; then
