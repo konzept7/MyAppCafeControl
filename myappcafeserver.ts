@@ -497,10 +497,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.reloadConfigHandler(job)
       }
 
-      if (operation === 'deactivate-device') {
+      if (operation === 'check device') {
+        return await this.checkDeviceHandler(job)
+      }
+      if (operation === 'deactivate device') {
         return await this.deactivateDeviceHandler(job)
       }
-      if (operation === 'restart-device') {
+      if (operation === 'restart device') {
         return await this.restartDeviceHandler(job)
       }
 
@@ -548,7 +551,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       const response = await axios.post(this._url + 'devices/test/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed('device tested successfull'), this._thingName, this._connection)
+        jobUpdate(job.jobId, job.Succeed('device tested successfully'), this._thingName, this._connection)
         return
       }
       jobUpdate(job.jobId, job.Fail('device-test returned fales', "AXXXX"), this._thingName, this._connection)
