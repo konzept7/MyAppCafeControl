@@ -522,6 +522,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
 
 
+      if (operation == 'reboot') {
+        return await this.rebootHandler(job);
+      }
+
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -1268,6 +1272,23 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       return
     }
     jobUpdate(job.jobId, job.Fail('could not remove startup-time', 'AXXXX'), this._thingName, this._connection)
+  }
+
+  async rebootHandler(job: Job) {
+    const scheduledJobRequest = job.Progress(0.1, 'scheduled');
+    scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
+    scheduledJobRequest.statusDetails.message = 'reboot will be executed';
+    jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
+
+    try {
+      await awaitableExec("sudo reboot", { cwd: this._serverPath })
+      const success = job.Succeed();
+      jobUpdate(job.jobId, success, this._thingName, this._connection);
+    } catch (err) {
+      error('error while executing reboot', err)
+      const fail = job.Fail('error while executing reboot: ' + err, "AXXXX");
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+    }
   }
 
   async handleTunnel(tunnel: Tunnel) {
