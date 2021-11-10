@@ -519,6 +519,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.messageHandler(job)
       }
 
+      if (operation === 'set server-state') {
+        return await this.serverStateHandler(job)
+      }
+
 
       if (operation == 'reboot') {
         return await this.rebootHandler(job);
@@ -730,6 +734,28 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     jobUpdate(job.jobId, job.Progress(currentProgress, `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
     jobUpdate(job.jobId, job.Succeed(`total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
 
+  }
+
+  async serverStateHandler(job: Job) {
+    try {
+      if (!job.jobDocument.parameters || !("newstate" in job.jobDocument.parameters)) {
+        throw new Error('no new state given')
+      }
+
+      try {
+        await axios.post(this._url + "setState/" + job.jobDocument.parameters["newstate"], undefined, { timeout: 10 * 1000 });
+      } catch (err) {
+        error('could not set server-state', err);
+      }
+
+      jobUpdate(job.jobId, job.Succeed('server-state set'), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('could not set server-state', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
   }
 
   async messageHandler(job: Job) {
