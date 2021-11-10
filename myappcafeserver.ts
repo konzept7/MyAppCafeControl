@@ -577,6 +577,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
   async trashMoveHandler(job: Job) {
+    const response = await axios.post('http://192.168.155.17:5002/api/robot/trash/03392', null, { timeout: 30 * 1000 });
+    console.log(response);
+    jobUpdate(job.jobId, job.Succeed('trashmove for device successful'), this._thingName, this._connection)
+    return;
+    /*
     try {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
         throw new Error('no device defined')
@@ -595,6 +600,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
+    */
   }
   async restartDeviceHandler(job: Job) {
     try {
