@@ -608,7 +608,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
         throw new Error('no device defined')
       }
-      const response = await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      const response = await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 15 * 60 * 1000 });
       if (response.status === 200) {
         jobUpdate(job.jobId, job.Succeed('device restarted'), this._thingName, this._connection)
         return
@@ -998,7 +998,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async testBeverageHandler(job: Job) {
-    const amount = job.jobDocument.amount ?? 1;
+    let amount = 1;
+    if (job.jobDocument.parameters && !("amount" in job.jobDocument.parameters)) {
+      amount = parseInt(job.jobDocument.parameters["amount"])
+    }
+
     info('test beverage requested');
     for (let index = 0; index < amount; index++) {
       try {
