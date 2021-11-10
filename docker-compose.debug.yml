@@ -29,7 +29,7 @@ services:
     container_name: config-provider
     volumes:
       - ".:/app"
-      - "/app/node_modules"      
+      - "/app/node_modules"    
       - "./certs:/usr/src/app/certs"
     ports:
       - "8000:8080"
@@ -116,6 +116,7 @@ services:
       - AWS_REGION=${AWS_REGION}
       - EVENTSTABLE=${EVENTSTABLE}
       - COGNITO_PASSWORD=${COGNITO_PASSWORD}
+      - ASPNETCORE_ENVIRONMENT=Development
   redis:
     image: redis@sha256:9f7be45667d76270a885e6f3b4050bb5ab154845aa32c2d0dbfa9a93bf8a2391
     command: redis-server --appendonly yes

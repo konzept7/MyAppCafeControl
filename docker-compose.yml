@@ -30,7 +30,7 @@ services:
     volumes:
       - ".:/app"
       - "/app/node_modules"      
-      - "./certs:/app/certs"
+      - "./certs:/usr/src/app/certs"
     ports:
       - "8000:8080"
     environment:
