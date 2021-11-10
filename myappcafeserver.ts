@@ -1306,7 +1306,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async removeStartupHandler(job: Job) {
     const result = await axios.delete(this._url + 'init/startup')
-    if (result.status !== 200) {
+    if (result.status === 200) {
       jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
       return
     }
