@@ -440,16 +440,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return Promise.reject();
       }
 
-      // if ("shadowCondition" in job.jobDocument && "state" in job.jobDocument.shadowCondition) {
-      //   const allowedConditions = job.jobDocument.shadowCondition.state.split('|').map((c: string) => c.trim() as ServerState)
-      //   debug('allowed conditions for current job are: ' + allowedConditions.join(', '))
-      //   if (!(allowedConditions.includes((c: ServerState) => this._state))) {
-      //     error('job will fail because it has a state condition that is not met by the current server state: ' + this._state)
-      //     const fail = job.Fail('job will fail because it has a state condition that is not met by the current server state: ' + this._state, "AXXX");
-      //     jobUpdate(job.jobId, fail, this._thingName, this._connection);
-      //     return Promise.reject();
-      //   }
-      // }
+      if ("shadowCondition" in job.jobDocument && "state" in job.jobDocument.shadowCondition) {
+        const allowedConditions = job.jobDocument.shadowCondition.state.split('|').map((c: string) => c.trim() as ServerState)
+        debug('allowed conditions for current job are: ' + allowedConditions.join(', '))
+        if (!(allowedConditions.includes((c: ServerState) => this._state))) {
+          error('job will fail because it has a state condition that is not met by the current server state: ' + this._state)
+          const fail = job.Fail('job will fail because it has a state condition that is not met by the current server state: ' + this._state, "AXXX");
+          jobUpdate(job.jobId, fail, this._thingName, this._connection);
+          return Promise.reject();
+        }
+      }
 
       if (operation === 'update') {
         return await this.updateHandler(job);
@@ -579,6 +579,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
   async trashMoveHandler(job: Job) {
+    if (this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) {
+      jobUpdate(job.jobId, job.Fail(`server is in state ${this._state}! we will not execute a robot test during operation`, "AXXXX"), this._thingName, this._connection)
+      return;
+    }
+
     try {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
         throw new Error('no device defined')
