@@ -1280,28 +1280,23 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async setStartupHandler(job: Job) {
     try {
-      console.log("a")
       if (!job.jobDocument.parameters || !("rebootTime" in job.jobDocument.parameters)) {
         throw new Error('no rebootTime defined')
       }
-      console.log("b")
+
       const rebootTime: Date = new Date(job.jobDocument.parameters["rebootTime"]);
-      console.log("c")
       const result = await axios.post(this._url + 'init/startup', { rebootTime: rebootTime.toISOString() })
 
-      console.log("d")
       if (result.status === 200) {
-        console.log("d-e")
         jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
-        console.log("d-f")
         return
       }
-      console.log("fark")
 
       jobUpdate(job.jobId, job.Fail('could not set startup-time', 'AXXXX'), this._thingName, this._connection)
     }
     catch (err) {
       error('job failed', { job, err })
+      console.log('err is ', err);
       if (job.status !== 'FAILED') {
         const fail = job.Fail('error setting startuptime', "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
