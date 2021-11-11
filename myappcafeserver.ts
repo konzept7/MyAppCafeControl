@@ -1264,7 +1264,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
     log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
-    const url = this._url + "block"
+    const url = this._url + "order/block"
     try {
       if (block) {
         await axios.put(url);
