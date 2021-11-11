@@ -571,8 +571,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
         throw new Error('no device defined')
       }
-      const deactivationType = job.jobDocument.option as JobOption || '';
-      console.log(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType)
+      let deactivationType = job.jobDocument.option || '';
+      if (deactivationType === '') {
+        jobUpdate(job.jobId, job.Fail('job option not set', "AXXXX"), this._thingName, this._connection)
+        return
+      }
+      if (deactivationType === 'deviceshutdown' || deactivationType === 'devicedisabled')
+        deactivationType = JobOption[deactivationType]
       const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
       console.log(response)
       if (response.status === 200) {
