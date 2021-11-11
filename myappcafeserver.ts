@@ -568,18 +568,27 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   async deactivateDeviceHandler(job: Job) {
     try {
+      console.log('a')
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
+        console.log('b')
         throw new Error('no device defined')
       }
+      console.log('c')
       const deactivationType = job.jobDocument.option || '';
+      console.log('d')
+      console.log(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType)
       const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
+      console.log(response)
       if (response.status === 200) {
+        console.log('e')
         jobUpdate(job.jobId, job.Succeed('device deactivated' + (deactivationType === 'Disabled' ? ' permanently' : '')), this._thingName, this._connection)
         return
       }
+      console.log('f')
       jobUpdate(job.jobId, job.Fail('device could not be deactivated', "AXXXX"), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
+      console.log('deactivation failed: ', err)
       if (job.status !== 'FAILED') {
         const fail = job.Fail('device could not be deactivated', "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
