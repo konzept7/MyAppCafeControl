@@ -529,6 +529,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.serverStateHandler(job)
       }
 
+      if (operation === 'block-orders') {
+        return await this.blockHandler(job)
+      }
 
       if (operation == 'reboot') {
         return await this.rebootHandler(job);
