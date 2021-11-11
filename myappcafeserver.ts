@@ -651,10 +651,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(.3, 'connecting to redis'), this._thingName, this._connection)
       const client = new Redis(REDIS_PORT, REDIS_HOST);
       jobUpdate(job.jobId, job.Progress(.6, 'removing key isMoving'), this._thingName, this._connection)
-      client.del('isMoving')
+      await client.del('isMoving')
       jobUpdate(job.jobId, job.Progress(.9, 'removing key unrecoverable'), this._thingName, this._connection)
-      client.del('unrecoverable')
-      client.disconnect()
+      await client.del('unrecoverable')
+      await client.disconnect()
       jobUpdate(job.jobId, job.Succeed('robot recovered'), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
@@ -1015,8 +1015,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(.5, 'connecting to redis'), this._thingName, this._connection)
       const client = new Redis(REDIS_PORT, REDIS_HOST);
       jobUpdate(job.jobId, job.Progress(.9, 'removing key orders'), this._thingName, this._connection)
-      client.del('orders')
-      client.disconnect()
+      await client.del('orders')
+      await client.disconnect()
       jobUpdate(job.jobId, job.Succeed('removed orders'), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
