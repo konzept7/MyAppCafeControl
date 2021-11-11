@@ -1,5 +1,5 @@
-const ELASTICACHE_HOST = process.env.ELASTICACHE_HOST || 'localhost'
-const ELASTICACHE_PORT = process.env.ELASTICACHE_PORT || 6379
+const REDIS_HOST = 'localhost'
+const REDIS_PORT = 6379
 
 
 import { ControllableProgram } from './controllableProgram'
@@ -649,7 +649,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async recoverRobotHandler(job: Job) {
     try {
       jobUpdate(job.jobId, job.Progress(.3, 'connecting to redis'), this._thingName, this._connection)
-      const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
+      const client = new Redis(REDIS_PORT, REDIS_HOST);
       jobUpdate(job.jobId, job.Progress(.6, 'removing key isMoving'), this._thingName, this._connection)
       client.del('isMoving')
       jobUpdate(job.jobId, job.Progress(.9, 'removing key unrecoverable'), this._thingName, this._connection)
@@ -658,6 +658,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Succeed('robot recovered'), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
+      console.log('recover robot failed: ', err)
       if (job.status !== 'FAILED') {
         const fail = job.Fail('could not recover robot', "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -1012,13 +1013,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async removeOrdersHandler(job: Job) {
     try {
       jobUpdate(job.jobId, job.Progress(.5, 'connecting to redis'), this._thingName, this._connection)
-      const client = new Redis(ELASTICACHE_PORT, ELASTICACHE_HOST);
+      const client = new Redis(REDIS_PORT, REDIS_HOST);
       jobUpdate(job.jobId, job.Progress(.9, 'removing key orders'), this._thingName, this._connection)
       client.del('orders')
       client.disconnect()
       jobUpdate(job.jobId, job.Succeed('removed orders'), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
+      console.log('remove orders failed: ', err)
       if (job.status !== 'FAILED') {
         const fail = job.Fail('could not remove orders', "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -1412,6 +1414,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         if (!credentials) throw new Error("error getting credentials, job will fail");
 
       } catch (err) {
+        console.log('executeUpdate filaed: ', err)
         error('unable to get credentials for update', err)
         reject('unable to get credentials for update\n' + err);
         return
@@ -1462,6 +1465,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
         }
       } catch (err) {
+        console.log('error during update: ', err)
         error('error while exeuting update', err)
         reject('unable to execute update\n' + err);
         return
