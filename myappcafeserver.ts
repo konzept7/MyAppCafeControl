@@ -579,13 +579,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (deactivationType === 'deviceshutdown' || deactivationType === 'devicedisabled')
         deactivationType = JobOption[deactivationType]
       const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
-      console.log(response)
       if (response.status === 200) {
-        console.log('e')
         jobUpdate(job.jobId, job.Succeed('device deactivated' + (deactivationType === 'Disabled' ? ' permanently' : '')), this._thingName, this._connection)
         return
       }
-      console.log('f')
       jobUpdate(job.jobId, job.Fail('device could not be deactivated', "AXXXX"), this._thingName, this._connection)
     } catch (err) {
       error('job failed', { job, err })
@@ -1271,18 +1268,27 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
+    console.log('a')
     log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
+    console.log('b')
     const url = this._url + "order/block"
+    console.log('c ' + url)
     try {
+      console.log('d')
       if (block) {
+        console.log('e')
         await axios.put(url);
+        console.log('f')
         return true;
       } else {
+        console.log('g')
         await axios.delete(url);
+        console.log('h')
         return true;
       }
     } catch (err) {
       error('error blocking/unblocking orders', err);
+      console.log('error blocking/unblocking orders: ', err)
       return false;
     }
   }
