@@ -568,14 +568,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   async deactivateDeviceHandler(job: Job) {
     try {
-      console.log('a')
       if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        console.log('b')
         throw new Error('no device defined')
       }
-      console.log('c')
-      const deactivationType = job.jobDocument.option || '';
-      console.log('d')
+      const deactivationType = job.jobDocument.option as JobOption || '';
       console.log(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType)
       const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
       console.log(response)
@@ -934,9 +930,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       else {
         log('server was already shut down');
         resolve('server is shut down');
-
       }
-
     })
   }
 
