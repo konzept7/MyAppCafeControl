@@ -5,8 +5,8 @@
     [Service]
     ExecStart=/usr/bin/node dist/index.js
     WorkingDirectory=/home/pi/srv/MyAppCafeControl/
-    StandardOutput=file:/home/pi/srv/MyAppCafeControl/log1.txt
-    StandardError=file:/home/pi/srv/MyAppCafeControl/log2.txt
+    StandardOutput=file:/home/pi/srv/MyAppCafeControl/log.txt
+    StandardError=file:/home/pi/srv/MyAppCafeControl/log.txt
     Restart=always
     User=pi
     EnvironmentFile=/home/pi/srv/MyAppCafeControl/.env

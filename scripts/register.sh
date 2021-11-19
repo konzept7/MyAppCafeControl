@@ -68,7 +68,7 @@ npm run build
 
 # get a new certificate
 echo "Creating keys and certificates"
-cd ~/srv/MyAppCafeControl
+cd /home/pi/srv/MyAppCafeControl
 aws iot create-keys-and-certificate --region $region --set-as-active --certificate-pem-outfile me.cert.pem --public-key-outfile me.public.key --private-key-outfile me.private.key > ~/awsresponse.json
 
 certArn=$(cat ~/awsresponse.json | jq -r '.certificateArn')
@@ -83,6 +83,7 @@ echo "Converting pem files to pfx"
 openssl pkcs12 -export -in me.cert.pem -inkey me.private.key -out me.cert.pfx -certfile root-CA.crt -passout pass:
 
 echo "copying certificates in certs folder"
+mkdir /home/pi/srv/MyAppCafeControl/certs
 cp me.cert.pem ./certs/me.cert.pem
 cp me.cert.pfx ./certs/me.cert.pfx
 cp root-CA.crt ./certs/root-CA.crt
@@ -141,7 +142,7 @@ aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $regio
 
 echo "adding public key to authorized keys"
 # Define the filename
-mkdir -p /home/pi/ssh/
+mkdir -p /home/pi/.ssh/
 touch /home/pi/.ssh/authorized_keys
 publicKey=$(aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub -)
 echo $publicKey >> /home/pi/.ssh/authorized_keys
