@@ -1,10 +1,11 @@
 version: "3"
 
 volumes:
-  logs:
-  redis-data:
+  logs: null
+  redis-data: null
   events:
 
+    null
 services:
   terminal:
     image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/terminal-debug:latest
@@ -29,7 +30,7 @@ services:
     container_name: config-provider
     volumes:
       - ".:/app"
-      - "/app/node_modules"    
+      - "/app/node_modules"
       - "./certs:/usr/src/app/certs"
     ports:
       - "8000:8080"
@@ -39,7 +40,10 @@ services:
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET=${AWS_SECRET}
       - LANGUAGE=${VUE_APP_LANGUAGE}
-    deploy:
+      - ENDPOINT=https://dev.compute.myapp.cafe/
+      - STAGE=dev
+      - API_KEY=${API_KEY}
+    deploy: null
     restart: unless-stopped
     logging:
       driver: "json-file"
