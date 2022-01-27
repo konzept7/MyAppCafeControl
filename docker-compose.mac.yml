@@ -1,0 +1,133 @@
+version: "3"
+
+volumes:
+  logs: null
+  redis-data: null
+  events:
+
+    null
+services:
+  terminal:
+    image: terminal:latest
+    container_name: terminal
+    volumes:
+      - ".:/app"
+      - "/app/node_modules"
+    ports:
+      - "5006:80"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
+    environment:
+      - VUE_APP_SERVER_IP=${VUE_APP_SERVER_IP}
+      - VUE_APP_PLU_PORT=${VUE_APP_PLU_PORT}
+      - VUE_APP_MAINSERVER_PORT=${VUE_APP_MAINSERVER_PORT}
+  config-provider:
+    image: config:latest
+    container_name: config-provider
+    volumes:
+      - ".:/app"
+      - "/app/node_modules"
+      - "./certs:/usr/src/app/certs"
+    ports:
+      - "8000:8080"
+    environment:
+      - BOXID=${BOXID}
+      - ERP_BUCKET=${ERP_BUCKET}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET=${AWS_SECRET}
+      - LANGUAGE=${VUE_APP_LANGUAGE}
+    deploy: null
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
+  status-frontend:
+    image: status:latest
+    container_name: status-frontend
+    volumes:
+      - ".:/app"
+      - "/app/node_modules"
+    ports:
+      - "5005:80"
+    restart: unless-stopped
+    environment:
+      - BOXID=${BOXID}
+      - VUE_APP_SERVER_IP=${VUE_APP_SERVER_IP}
+      - VUE_APP_PLU_PORT=${VUE_APP_PLU_PORT}
+      - VUE_APP_MAINSERVER_PORT=${VUE_APP_MAINSERVER_PORT}
+      - VUE_APP_LANGUAGE=${VUE_APP_LANGUAGE}
+      - VUE_APP_BOXID=${BOXID}
+  display-queue:
+    image: queue:latest
+    container_name: display-queue
+    volumes:
+      - ".:/app"
+      - "/app/node_modules"
+    ports:
+      - "5007:80"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
+    environment:
+      - BOXID=${BOXID}
+      - VUE_APP_SERVER_IP=${VUE_APP_SERVER_IP}
+      - VUE_APP_PLU_PORT=${VUE_APP_PLU_PORT}
+      - VUE_APP_MAINSERVER_PORT=${VUE_APP_MAINSERVER_PORT}
+      - VUE_APP_LANGUAGE=${VUE_APP_LANGUAGE}
+      - VUE_APP_BOXID=${BOXID}
+  myappcafeserver:
+    image: myappcafeserver:latest
+    container_name: myappcafeserver
+    restart: unless-stopped
+    volumes:
+      - "./logs:/app/Logs"
+      - "/app/bin"
+      - "events:/app/events"
+      - "./certs:/app/certs"
+    ports:
+      - "5003:80"
+      - "5002:5002"
+      - "49000:49000"
+      - "50000:50000"
+      - "22000:22000"
+      - "25000:25000"
+    privileged: true
+    depends_on:
+      - config-provider
+      - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "10m"
+    environment:
+      - BOXID=${BOXID}
+      - ERP_BUCKET=${ERP_BUCKET}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET=${AWS_SECRET}
+      - AWS_REGION=${AWS_REGION}
+      - EVENTSTABLE=${EVENTSTABLE}
+      - COGNITO_PASSWORD=${COGNITO_PASSWORD}
+  redis:
+    image: redis@sha256:9f7be45667d76270a885e6f3b4050bb5ab154845aa32c2d0dbfa9a93bf8a2391
+    command: redis-server --appendonly yes
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
+    volumes:
+      - "./redis-data:/data"
