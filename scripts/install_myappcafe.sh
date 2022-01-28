@@ -153,6 +153,15 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
     sudo systemctl start docker.service
 
     if [[ "$installationPackage" == "server" ]]; then
+
+        echo "Installing AWS CRT"
+        cd /home/pi/srv
+        git clone https://github.com/awslabs/aws-crt-nodejs.git
+        cd /home/pi/srv/aws-crt-nodejs
+        git submodule update --init
+        npm install
+        cp -r /home/pi/srv/aws-crt-nodejs/dist/bin/linux-arm /home/pi/srv/MyAppCafeControl/node_modules/aws-crt/dist/bin/linux-arm
+
         echo "Installing docker-compose"
         sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev -y
         sudo pip3 install docker-compose==1.26.0
