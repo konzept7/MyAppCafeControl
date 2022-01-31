@@ -51,7 +51,7 @@ cd boost_1_69_0
 sudo ./b2 install
 
 echo '3. Installing Protobuf'
-sudo apt install -y libprotobuf-c-dev libprotobuf-c1 libprotobuf-dev libprotobuf-lite17 libprotobuf17 protobuf-c-compiler protobuf-compiler
+sudo apt install -y libprotobuf-c-dev libprotobuf-c1 libprotobuf-dev libprotobuf-lite23 libprotobuf23 protobuf-c-compiler protobuf-compiler
 
 echo '4. Installing OpenSSL DevLibs'
 sudo apt install -y libssl-dev
