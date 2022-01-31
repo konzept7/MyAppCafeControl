@@ -265,9 +265,9 @@ if [[ "$installationPackage" == "camera" ]]; then
     echo 'Setting up service for cam-autostart'
     # create shell script to launch cam
     echo '#!/bin/bash' | sudo tee /home/pi/launch-cam.sh
-    echo 'export GST_PLUGIN_PATH=/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build'
+    echo 'export GST_PLUGIN_PATH=/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | sudo tee /home/pi/launch-cam.sh
     echo 'gst-launch-1.0 v4l2src do-timestamp=TRUE device=/dev/video0 ! videobalance saturation=0.0 ! clockoverlay time-format="%D %H:%M:%S" halignment=right font-desc="Sans, 16" ! videoconvert ! video/x-raw,18rmat=I420,width=532,height=400,framerate=15/1 ! omxh264enc control-rate=1 target-bitrate=512000 periodicity-idr=45 inline-header=FALSE ! h264parse ! video/x-h264,stream-format=avc,alignment=au,width=532,height=400,framerate=15/1,profile=baseline ! kvssink stream-name="'$streamname'" access-key="'$awsaccess'" secret-key="'$awssecret'" aws-region="'$awsregion'"' | sudo tee -a /home/pi/launch-cam.sh
-    chmod ugo+x /home/pi/launch-cam.sh
+    sudo chmod ugo+x /home/pi/launch-cam.sh
 
     # create script file
     cd /home/pi/
