@@ -14,11 +14,17 @@ echo "*** from *your* host machine"
 echo "****************************************************************"
 
 
-read -p "Enter the thing name : " thingName
-read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
-read -p "Enter the 2-digit country code where the box will be located [de, us] : " thingGroup
+read -p "Enter the thing name (box id): " thingName
+# read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
+thingType=Server
+read -p "Enter the 2-digit country code where the box will be located [de, us, at] : " thingGroup
+read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
+read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
 
-# TODO: check type
+
+nicename=$(echo "$thingGroup"|awk '{print toupper($0)}')_${city}_${locationname}
+echo "Naming convention for nice names: <2-digit country code in uppercase>_<city>_<location-name> -> DE_Karlsruhe_Postgalerie"
+
 
 read -p "Enter AWS AccessKey : " accessKey
 read -p "Enter AWS SecretKey : " secretKey
@@ -75,7 +81,7 @@ certArn=$(cat ~/awsresponse.json | jq -r '.certificateArn')
 
 echo "created certificate with ARN $certArn in region $region"
 
-aws s3 cp me.public.key s3://token.myapp.cafe/$thingName.public.key
+
 echo "Get root certificates"
 sudo wget -O root-CA.crt https://www.amazontrust.com/repository/AmazonRootCA1.pem
 
@@ -90,6 +96,11 @@ cp root-CA.crt ./certs/root-CA.crt
 cp me.private.key ./certs/me.private.key
 cp me.public.key ./certs/me.public.key
 
+aws s3 cp me.cert.pem s3://token.myapp.cafe/$thingName/me.cert.pem
+aws s3 cp me.cert.pfx s3://token.myapp.cafe/$thingName/me.cert.pfx
+aws s3 cp me.private.key s3://token.myapp.cafe/$thingName/me.private.key
+aws s3 cp me.public.key s3://token.myapp.cafe/$thingName/me.public.key
+
 # attach policy
 echo "Attaching policies"
 aws iot attach-policy --region $region --target $certArn --policy-name TutorialThing-Policy
@@ -99,7 +110,7 @@ aws iot attach-policy --region $region --target $certArn --policy-name configpol
 
 # new thing
 echo "Creating new thing"
-aws iot create-thing --region $region --thing-name $thingName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"HardwareVersion\":\"v0.1\", \"Language\": \"de\", \"Region\": \"$region\"}}"
+aws iot create-thing --region $region --thing-name $thingName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"City\": \"$city\", \"Nicename\": \"$nicename\"}}"
 
 # cert atttachen an thing
 echo "Attaching principal to thing"
@@ -139,6 +150,7 @@ aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $regio
 aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $region --username $username --group-name wawi
 aws cognito-idp admin-add-user-to-group --user-pool-id $userpool --region $region --username $username --group-name admin
 
+aws s3 cp /home/pi/srv/MyAppCafeControl/.env s3://token.myapp.cafe/$thingName/.env
 
 echo "adding public key to authorized keys"
 # Define the filename

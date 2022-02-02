@@ -172,6 +172,9 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
 
         echo "Installing aws cli"
         pip3 install awscli --upgrade --user
+
+        echo "Installing nmap"
+        sudo apt install nmap
     fi
     echo '-----------------------------------------------------------'
 fi
