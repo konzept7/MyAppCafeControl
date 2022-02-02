@@ -537,6 +537,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.rebootHandler(job);
       }
 
+      if (operation == 'disable-notifications') {
+        return await this.disableNotificationsHandler(job);
+      }
+
+      if (operation == 'reset-redis') {
+        return await this.resetRedisHandler(job);
+      }
+
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknown operation " + operation, "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -1396,6 +1404,55 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     })
   }
+
+  async resetRedisHandler(job: Job) {
+    try {
+      jobUpdate(job.jobId, job.Progress(.20, 'connecting to redis'), this._thingName, this._connection)
+      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      jobUpdate(job.jobId, job.Progress(.4, 'removing key isMoving'), this._thingName, this._connection)
+      await client.del('isMoving')
+      jobUpdate(job.jobId, job.Progress(.6, 'removing key unrecoverable'), this._thingName, this._connection)
+      await client.del('unrecoverable')
+      jobUpdate(job.jobId, job.Progress(.8, 'setting clean shutdown'), this._thingName, this._connection)
+      await client.set('shutdown', '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}');
+      await client.disconnect()
+      jobUpdate(job.jobId, job.Progress(1, 'done'), this._thingName, this._connection)
+      jobUpdate(job.jobId, job.Succeed('redis has been reset'), this._thingName, this._connection)
+    } catch (err) {
+      error('job failed', { job, err })
+      console.log('redis reset failed: ', err)
+      if (job.status !== 'FAILED') {
+        const fail = job.Fail('could not reset redis', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+  }
+
+
+  async disableNotificationsHandler(job: Job) {
+    if (job.jobDocument.option === JobOption.block) {
+      log('got request to disable notifications', job)
+      const result = await axios.post(this._url + 'notifications/disable')
+      if (result.status === 200) {
+        jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+        return
+      }
+      const fail = job.Fail('could not disable notifications', "AXXXX");
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      return;
+    }
+
+    // re-enable notifications
+    log('got request to enable notifications', job)
+    const result = await axios.post(this._url + 'notifications/enable')
+    if (result.status === 200) {
+      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+      return
+    }
+    const fail = job.Fail('could not enable notifications', "AXXXX");
+    jobUpdate(job.jobId, fail, this._thingName, this._connection);
+  }
+
 
   async executeUpdate(job: Job | undefined) {
     return new Promise(async (resolve, reject) => {
