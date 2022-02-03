@@ -1530,8 +1530,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           cwd: this._serverPath
         })
         progress = 0.9;
-        log('all applications restarted, waiting 20 seconds for all to settle')
-        await sleep(20 * 1000);
+        log('all applications restarted, waiting 90 seconds for all to settle')
+        await sleep(90 * 1000);
         await axios.post(this._url + 'init/sanitize-soft');
         log('sanitized the shutdown')
         if (job) {
