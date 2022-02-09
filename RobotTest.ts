@@ -265,14 +265,17 @@ export class RobotTest extends EventEmitter {
 
     for (let x = 0; x < (this.AllSequences!.length); x++) {
       const sequences = this.AllSequences![x];
+      info('starting robot test program')
       this.emit('start', sequences.name)
 
       for (let y = 0; y < sequences.sequences.length; y++) {
         const sequence = sequences.sequences[y];
+        info('starting sequence', sequence)
         const results: Array<Rm> = []
         for (let z = 0; z < sequence.length; z++) {
 
           const move = sequence[z];
+          info('starting move', move)
           while (!move.IsSuccess && move.Retries <= this.NumberOfRetries) {
             const startTime = new Date()
 
@@ -309,15 +312,15 @@ export class RobotTest extends EventEmitter {
             resolve(true)
           })
         })
-        this.emit('sequence', sequences);
-        await sleep(90 * 1000);
-        this._socket?.write("97");
-        await new Promise((resolve) => {
-          this.once('data', () => {
-            resolve(true)
-          })
-        })
       }
+      this.emit('sequence', sequences);
+      await sleep(90 * 1000);
+      this._socket?.write("97");
+      await new Promise((resolve) => {
+        this.once('data', () => {
+          resolve(true)
+        })
+      })
     }
     this.emit('finish')
 
