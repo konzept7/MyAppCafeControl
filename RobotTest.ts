@@ -208,7 +208,7 @@ export class RobotTest extends EventEmitter {
     this.IsCancelled = true;
   }
 
-  async prepare(include: Array<string> = ["ctToClToTrash",
+  async prepare(include: string | Array<string> = ["ctToClToTrash",
     "ctToCrToTrash",
     "ctToIceToClToTrash",
     "ctToIceToCrToTrash",

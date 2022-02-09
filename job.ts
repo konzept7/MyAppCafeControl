@@ -28,7 +28,7 @@ class JobDocument {
   isForced: boolean | undefined;
   command: string | undefined;
   option: JobOption | undefined;
-  parameters: Record<string, string> | undefined;
+  parameters: Record<string, string> | undefined | Record<string, Array<string>>;
   url: string | undefined;
   body: string | undefined;
   httpMethod: string | undefined;
