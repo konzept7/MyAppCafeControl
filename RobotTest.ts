@@ -95,6 +95,8 @@ const createSequences = (include: Array<string> = ["ctToClToTrash",
   const ctToCrToPlToGx = gates.map(g => [new Rm(randomCupTray(), Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.PrinterRightIn), new Rm(Rp.PrinterRightOut, g)])
   const shows = show.map(s => [new Rm(Rp.TrashCan, s)])
 
+  console.log('creating sequences', include)
+
   const sequences = [
     { name: "Becherhalter -> WMF links -> Mülleimer", sequences: ctToClToTrash, key: "ctToClToTrash" },
     { name: "Becherhalter -> WMF rechts -> Mülleimer", sequences: ctToCrToTrash, key: "ctToCrToTrash" },
@@ -217,6 +219,8 @@ export class RobotTest extends EventEmitter {
     "ctToCrToPlToGx",
     "ctToCrToPrToGx",
     "shows"]) {
+
+    info('preparing robo test with sequences', include)
 
     const connector = await new Promise((resolve, reject) => {
       // Use net.createServer() in your code. This is just for illustration purpose.

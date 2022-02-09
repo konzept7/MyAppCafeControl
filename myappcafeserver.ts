@@ -703,7 +703,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     jobUpdate(job.jobId, job.Progress(0.02, "stopped containers"), this._thingName, this._connection);
 
     let include: string[] | undefined = job.jobDocument.parameters?.includeForTest ? JSON.parse(job.jobDocument.parameters.includeForTest) : undefined;
-
+    info('received job to test robot, included sequences: ', include)
     const test = new RobotTest();
     try {
       if (!await test.prepare(include)) throw new Error("could not connect to robot")
