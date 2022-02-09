@@ -49,7 +49,17 @@ const sleep = (ms: number) => {
   return new Promise(res => setTimeout(res, ms))
 }
 
-const createSequences = () => {
+const createSequences = (include: Array<string> = ["ctToClToTrash",
+  "ctToCrToTrash",
+  "ctToIceToClToTrash",
+  "ctToIceToCrToTrash",
+  "ctToClToGx",
+  "ctToCrToGx",
+  "ctToClToPlToGx",
+  "ctToClToPrToGx",
+  "ctToCrToPlToGx",
+  "ctToCrToPrToGx",
+  "shows"]) => {
   const cupTrays = [
     Rp.CupTrayLeft200_1,
     Rp.CupTrayLeft300_1,
@@ -66,13 +76,13 @@ const createSequences = () => {
     Rp.CupTrayRight500_1,
     Rp.CupTrayRight500_2
   ]
-  const gates = [Rp.Gate1, Rp.Gate2, Rp.Gate3, Rp.Gate4]
+  const gates = [Rp.Gate1, Rp.Gate2, Rp.Gate3]
   const show = [Rp.WaveLeftGates, Rp.WaveRightGates, Rp.DrawRectangleLeft, Rp.DrawRectangleRight, Rp.DrumFrontLeftToBack, Rp.DrumFrontLeftToBackSecond]
 
   const ctToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan, undefined, false, false)])
   const ctToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan, undefined, false, false)])
-  const ctToIceToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeLeftIn), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan, undefined, false, false)])
-  const ctToIceToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.IceMachine, Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.TrashCan, undefined, false, false)])
+  const ctToIceToClToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeLeftIn, Rp.IceMachine), new Rm(Rp.CoffeeLeftOut, Rp.TrashCan, undefined, false, false)])
+  const ctToIceToCrToTrash = cupTrays.map(ct => [new Rm(ct, Rp.CoffeeRightIn, Rp.IceMachine), new Rm(Rp.CoffeeRightOut, Rp.TrashCan, undefined, false, false)])
 
   const numberOfCupTrays = cupTrays.length;
   const randomCupTray = () => cupTrays[Math.floor(Math.random() * numberOfCupTrays)]
@@ -85,21 +95,21 @@ const createSequences = () => {
   const ctToCrToPlToGx = gates.map(g => [new Rm(randomCupTray(), Rp.CoffeeRightIn), new Rm(Rp.CoffeeRightOut, Rp.PrinterRightIn), new Rm(Rp.PrinterRightOut, g)])
   const shows = show.map(s => [new Rm(Rp.TrashCan, s)])
 
-  const sequences = [{ name: "Becherhalter -> WMF links -> Mülleimer", sequences: ctToClToTrash },
-  { name: "Becherhalter -> WMF rechts -> Mülleimer", sequences: ctToCrToTrash },
-  { name: "Becherhalter -> WMF rechts -> Mülleimer", sequences: ctToCrToTrash },
-  { name: "Becherhalter -> Eis -> WMF links -> Mülleimer", sequences: ctToIceToClToTrash },
-  { name: "Becherhalter -> Eis -> WMF rechts -> Mülleimer", sequences: ctToIceToCrToTrash },
-  { name: "Becherhalter -> WMF links -> Ausgabe", sequences: ctToClToGx },
-  { name: "Becherhalter -> WMF rechts -> Ausgabe", sequences: ctToCrToGx },
-  { name: "Becherhalter -> WMF links -> Drucker links -> Ausgabe", sequences: ctToClToPlToGx },
-  { name: "Becherhalter -> WMF links -> Drucker rechts -> Ausgabe", sequences: ctToClToPrToGx },
-  { name: "Becherhalter -> WMF rechts -> Drucker links -> Ausgabe", sequences: ctToCrToPlToGx },
-  { name: "Becherhalter -> WMF rechts -> Drucker rechts -> Ausgabe", sequences: ctToCrToPrToGx },
-  { name: "Showprogramme", sequences: shows }
+  const sequences = [
+    { name: "Becherhalter -> WMF links -> Mülleimer", sequences: ctToClToTrash, key: "ctToClToTrash" },
+    { name: "Becherhalter -> WMF rechts -> Mülleimer", sequences: ctToCrToTrash, key: "ctToCrToTrash" },
+    { name: "Becherhalter -> Eis -> WMF links -> Mülleimer", sequences: ctToIceToClToTrash, key: "ctToIceToClToTrash" },
+    { name: "Becherhalter -> Eis -> WMF rechts -> Mülleimer", sequences: ctToIceToCrToTrash, key: "ctToIceToCrToTrash" },
+    { name: "Becherhalter -> WMF links -> Ausgabe", sequences: ctToClToGx, key: "ctToClToGx" },
+    { name: "Becherhalter -> WMF rechts -> Ausgabe", sequences: ctToCrToGx, key: "ctToCrToGx" },
+    { name: "Becherhalter -> WMF links -> Drucker links -> Ausgabe", sequences: ctToClToPlToGx, key: "ctToClToPlToGx" },
+    { name: "Becherhalter -> WMF links -> Drucker rechts -> Ausgabe", sequences: ctToClToPrToGx, key: "ctToClToPrToGx" },
+    { name: "Becherhalter -> WMF rechts -> Drucker links -> Ausgabe", sequences: ctToCrToPlToGx, key: "ctToCrToPlToGx" },
+    { name: "Becherhalter -> WMF rechts -> Drucker rechts -> Ausgabe", sequences: ctToCrToPrToGx, key: "ctToCrToPrToGx" },
+    { name: "Showprogramme", sequences: shows, key: "shows" }
   ]
 
-  return sequences;
+  return sequences.filter(s => (include.includes(s.key)));
 }
 
 export class Rm {
@@ -173,7 +183,6 @@ export class RobotTest extends EventEmitter {
   public NumberOfRetries!: number
   public NumberOfLoops!: number
   public Timeout!: number
-  public Exclude?: Array<Rp>
 
   Results: Array<Rm> = []
 
@@ -197,7 +206,17 @@ export class RobotTest extends EventEmitter {
     this.IsCancelled = true;
   }
 
-  async prepare() {
+  async prepare(include: Array<string> = ["ctToClToTrash",
+    "ctToCrToTrash",
+    "ctToIceToClToTrash",
+    "ctToIceToCrToTrash",
+    "ctToClToGx",
+    "ctToCrToGx",
+    "ctToClToPlToGx",
+    "ctToClToPrToGx",
+    "ctToCrToPlToGx",
+    "ctToCrToPrToGx",
+    "shows"]) {
 
     const connector = await new Promise((resolve, reject) => {
       // Use net.createServer() in your code. This is just for illustration purpose.
@@ -247,14 +266,14 @@ export class RobotTest extends EventEmitter {
     try {
       await Promise.race([connector, sleep(300000)])
       if (!this.IsConnected) {
-        throw new Error('could not connect to robot in 30 seconds')
+        throw new Error('could not connect to robot in 300 seconds')
       }
     } catch (err) {
       error("error waiting on robot connection", err)
       return false;
     }
 
-    this.AllSequences = createSequences();
+    this.AllSequences = createSequences(include);
 
     return true;
   }
@@ -300,19 +319,21 @@ export class RobotTest extends EventEmitter {
             }
             this.Results.push(move);
             results.push(move);
+            info('move finished', move)
             this.emit('move', move)
             if (!move.IsSuccess) move.Retries++
             await sleep(1500);
             if (!move.IsSuccessNeeded) break;
           }
         }
-        this._socket?.write("97");
-        await new Promise((resolve) => {
-          this.once('data', () => {
-            resolve(true)
-          })
-        })
       }
+      this._socket?.write("97");
+      info('sequence finished', sequences)
+      await new Promise((resolve) => {
+        this.once('data', () => {
+          resolve(true)
+        })
+      })
       this.emit('sequence', sequences);
       await sleep(90 * 1000);
       this._socket?.write("97");
