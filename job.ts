@@ -35,6 +35,7 @@ class JobDocument {
   boxId: string | undefined;
   amount: number | undefined;
   shadowCondition: any | undefined;
+  includeForTest: string | undefined;
 }
 // details about the step we are currently in
 class StatusDetails {
