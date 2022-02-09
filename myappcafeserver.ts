@@ -686,7 +686,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
 
   async robotTestHandler(job: Job) {
-    debug('received robot test job', job)
+    info('received robot test job', job)
 
     if (this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) {
       jobUpdate(job.jobId, job.Fail(`server is in state ${this._state}! we will not execute a robot test during operation`, "AXXXX"), this._thingName, this._connection)
@@ -702,7 +702,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     jobUpdate(job.jobId, job.Progress(0.02, "stopped containers"), this._thingName, this._connection);
 
-    let include: string[] | undefined = job.jobDocument.parameters?.includeForTest ? job.jobDocument.parameters.includeForTest.split(',') : undefined;
+    let include: string[] | undefined = job.jobDocument.includeForTest ? job.jobDocument.includeForTest.split(',') : undefined;
     info('parsed sequences to include', include)
     const test = new RobotTest();
     try {
