@@ -102,13 +102,6 @@ if [[ "$installationPackage" == "camera" ]]; then
 fi
 
 
-echo '-----------------------------------------------------------'
-echo
-echo 'Updating pi...'
-sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
-echo '-----------------------------------------------------------'
-echo
-
 echo 'Configuring pi...'
 echo "  - changing password"
 sudo usermod --password $(echo $password | openssl passwd -1 -stdin) pi
@@ -135,16 +128,27 @@ sudo systemctl enable ssh
 sudo systemctl start ssh
 
 
+echo '-----------------------------------------------------------'
+echo
+echo 'Updating pi...'
+sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
+echo '-----------------------------------------------------------'
+echo
 
-echo "Installing git..."
-sudo apt install -y git
-echo "Installing node..."
-cd /home/pi/
-curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
-sudo apt install -y nodejs
 
-echo "Installing jq"
-sudo apt install -y jq
+
+if [[ "$installationPackage" != "gate" ]]; then
+    echo "Installing git..."
+    sudo apt install -y git
+
+    echo "Installing node..."
+    cd /home/pi/
+    curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
+    sudo apt install -y nodejs
+
+    echo "Installing jq"
+    sudo apt install -y jq
+fi
 
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gate" ]]; then
     echo "Installing docker..."
