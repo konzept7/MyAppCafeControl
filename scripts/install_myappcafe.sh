@@ -40,7 +40,7 @@ if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1"
     exit 0
 fi
 if [[ "$1" == "--version" ]] || [[ "$1" == "--v" ]]; then
-    echo "Version 1.4"
+    echo "Version 1.5"
     echo
     exit 0
 fi
@@ -129,6 +129,10 @@ echo 'net.ipv6.conf.lo.disable_ipv6=1' | sudo tee -a /etc/sysctl.conf
 echo 'net.ipv6.conf.eth0.disable_ipv6=1' | sudo tee -a /etc/sysctl.conf
 echo '-----------------------------------------------------------'
 echo
+
+echo "  - enabling SSH"
+sudo systemctl enable ssh
+sudo systemctl start ssh
 
 
 
