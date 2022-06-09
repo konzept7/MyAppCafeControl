@@ -155,7 +155,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
     sudo apt-get install apt-transport-https ca-certificates software-properties-common -y
     curl -fsSL get.docker.com -o get-docker.sh && sh get-docker.sh
     sudo usermod -aG docker pi
-    sudo curl https://download.docker.com/linux/raspbian/gpg
+    sudo curl https://download.docker.com/linux/raspbian/gpg | sudo apt-key add -
     echo 'deb https://download.docker.com/linux/raspbian/ stretch stable' | sudo tee -a /etc/apt/sources.list
     sudo apt-get -y update && sudo apt-get -y upgrade
     sudo systemctl start docker.service
