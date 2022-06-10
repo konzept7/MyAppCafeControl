@@ -40,7 +40,7 @@ if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1"
     exit 0
 fi
 if [[ "$1" == "--version" ]] || [[ "$1" == "--v" ]]; then
-    echo "Version 1.4"
+    echo "Version 1.5"
     echo
     exit 0
 fi
@@ -102,13 +102,6 @@ if [[ "$installationPackage" == "camera" ]]; then
 fi
 
 
-echo '-----------------------------------------------------------'
-echo
-echo 'Updating pi...'
-sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
-echo '-----------------------------------------------------------'
-echo
-
 echo 'Configuring pi...'
 echo "  - changing password"
 sudo usermod --password $(echo $password | openssl passwd -1 -stdin) pi
@@ -130,24 +123,39 @@ echo 'net.ipv6.conf.eth0.disable_ipv6=1' | sudo tee -a /etc/sysctl.conf
 echo '-----------------------------------------------------------'
 echo
 
+echo "  - enabling SSH"
+sudo systemctl enable ssh
+sudo systemctl start ssh
 
 
-echo "Installing git..."
-sudo apt install -y git
-echo "Installing node..."
-cd /home/pi/
-curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
-sudo apt install -y nodejs
+echo '-----------------------------------------------------------'
+echo
+echo 'Updating pi...'
+sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
+echo '-----------------------------------------------------------'
+echo
 
-echo "Installing jq"
-sudo apt install -y jq
+
+
+if [[ "$installationPackage" != "gate" ]]; then
+    echo "Installing git..."
+    sudo apt install -y git
+
+    echo "Installing node..."
+    cd /home/pi/
+    curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
+    sudo apt install -y nodejs
+
+    echo "Installing jq"
+    sudo apt install -y jq
+fi
 
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gate" ]]; then
     echo "Installing docker..."
     sudo apt-get install apt-transport-https ca-certificates software-properties-common -y
     curl -fsSL get.docker.com -o get-docker.sh && sh get-docker.sh
     sudo usermod -aG docker pi
-    sudo curl https://download.docker.com/linux/raspbian/gpg
+    sudo curl https://download.docker.com/linux/raspbian/gpg | sudo apt-key add -
     echo 'deb https://download.docker.com/linux/raspbian/ stretch stable' | sudo tee -a /etc/apt/sources.list
     sudo apt-get -y update && sudo apt-get -y upgrade
     sudo systemctl start docker.service
