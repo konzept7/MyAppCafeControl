@@ -226,8 +226,10 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     echo
 
     # update myappcafecontrol during boot (make sure file is executable)
+    # and every month on the 15th, because we usually don't reboot
     sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
     (crontab -l ; echo "@reboot /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
+    (crontab -l ; echo "0 2 15 * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
     # fallback solution for script-hang (nightly restart)
     (crontab -l ; echo "30 2 * * * sudo systemctl restart myappcafecontrol.service") | crontab -
 

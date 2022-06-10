@@ -18,12 +18,16 @@ read -p "Enter the thing name (box id): " thingName
 # read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 thingType=Server
 read -p "Enter the 2-digit country code where the box will be located [de, us, at] : " thingGroup
+echo "****************************************************************"
+echo "Naming convention for nice names: <2-digit country code in uppercase>_<city>_<location-name> -> DE_Karlsruhe_Postgalerie"
+echo "*** Please replace spaces and diacritics on city and location name"
+echo "*** space -> _ | ö -> @o, Ö -> @O | ß -> @s"
+echo "****************************************************************"
 read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
 read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
 
 
 nicename=$(echo "$thingGroup"|awk '{print toupper($0)}')_${city}_${locationname}
-echo "Naming convention for nice names: <2-digit country code in uppercase>_<city>_<location-name> -> DE_Karlsruhe_Postgalerie"
 
 
 read -p "Enter AWS AccessKey : " accessKey
@@ -43,13 +47,12 @@ if [[ "$thingType" != "Server" ]]; then
   return 7
 fi
 echo "Registering a new thing as $thingType"
-read -p "Enter hardware version [V1]: " hardwareVersion
-read -p "Enter AWS region [eu-central-1, us-east-1]: " region
+region=eu-central-1
 read -p "Enter the default language [de, en, es]: " language
 echo "REGION=$region" >> /home/pi/srv/MyAppCafeControl/.env
 echo "TYPE=$thingType" >> /home/pi/srv/MyAppCafeControl/.env
 echo "THINGNAME=$thingName" >> /home/pi/srv/MyAppCafeControl/.env
-echo "VUE_APP_SERVER_IP=192.168.55.17" >> /home/pi/srv/MyAppCafeControl/.env
+echo "VUE_APP_SERVER_IP=192.168.155.17" >> /home/pi/srv/MyAppCafeControl/.env
 echo "BOXID=$thingName" >> /home/pi/srv/MyAppCafeControl/.env
 echo "AWS_REGION=$region" >> /home/pi/srv/MyAppCafeControl/.env
 echo "EVENTSTABLE=boxevents" >> /home/pi/srv/MyAppCafeControl/.env
