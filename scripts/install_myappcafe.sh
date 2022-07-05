@@ -183,6 +183,9 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
 
         echo "Installing nmap"
         sudo apt install nmap
+
+        echo "Installing VNC"
+        sudo apt install realvnc-vnc-server
     fi
     echo '-----------------------------------------------------------'
 fi
