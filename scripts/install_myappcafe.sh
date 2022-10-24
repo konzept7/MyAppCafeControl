@@ -182,7 +182,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         pip3 install awscli --upgrade --user
 
         echo "Installing nmap"
-        sudo apt install nmap
+        sudo apt install nmap -y
 
         echo "Installing VNC"
         sudo apt install realvnc-vnc-server
