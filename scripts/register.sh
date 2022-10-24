@@ -110,6 +110,7 @@ aws iot attach-policy --region $region --target $certArn --policy-name TutorialT
 aws iot attach-policy --region $region --target $certArn --policy-name AssumeRoleWithCertificate
 aws iot attach-policy --region $region --target $certArn --policy-name box-server-policy
 aws iot attach-policy --region $region --target $certArn --policy-name configpolicy
+aws iot attach-policy --region $region --target $certArn --policy-name franchise-portal-policy
 
 # new thing
 echo "Creating new thing"
