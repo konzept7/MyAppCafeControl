@@ -21,11 +21,12 @@ export AWS_ACCESS_KEY_ID=$accessKey
 export AWS_SESSION_TOKEN=$sessionToken
 
 
-read -p "[only: a-z, A-Z, 0-9, _] Enter the thing name (box id): " thingName
-if [[ ! $thingName =~ ^[a-zA-Z0-9_]+$ ]]; then
-  echo "Invalid thing name. Only a-z, A-Z, 0-9, _ are allowed."
-  exit 1
-fi
+read -p "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
+while [[ ! $thingName =~ ^[a-zA-Z0-9_-]+$ ]]; do
+  echo "Invalid thing name. Only a-z, A-Z, 0-9, _, - are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
+done
+
 # read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 thingType=Box
 
