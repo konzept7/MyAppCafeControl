@@ -174,7 +174,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         fi
 
         echo "Installing AWS CRT"
-        
+
         cd /home/pi/srv
         git clone https://github.com/awslabs/aws-crt-nodejs.git
         cd /home/pi/srv/aws-crt-nodejs
@@ -183,7 +183,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         cp -r /home/pi/srv/aws-crt-nodejs/dist/bin/linux-arm /home/pi/srv/MyAppCafeControl/node_modules/aws-crt/dist/bin/linux-arm
 
         echo "Installing docker-compose"
-        sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev -y
+        sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev python3-bcrypt -y
         sudo pip3 install docker-compose==1.26.0
         (crontab -l ; echo "0 4 * * 0 /usr/bin/docker system prune -f")| crontab -
 
