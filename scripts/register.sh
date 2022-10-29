@@ -13,23 +13,6 @@ echo "*** Please prepare by calling 'aws sts get-session-token'"
 echo "*** from *your* host machine"
 echo "****************************************************************"
 
-
-read -p "Enter the thing name (box id): " thingName
-# read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
-thingType=Server
-read -p "Enter the 2-digit country code where the box will be located [de, us, at] : " thingGroup
-echo "****************************************************************"
-echo "Naming convention for nice names: <2-digit country code in uppercase>_<city>_<location-name> -> DE_Karlsruhe_Postgalerie"
-echo "*** Please replace spaces and diacritics on city and location name"
-echo "*** space -> _ | ö -> @o, Ö -> @O | ß -> @s"
-echo "****************************************************************"
-read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
-read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
-
-
-nicename=$(echo "$thingGroup"|awk '{print toupper($0)}')_${city}_${locationname}
-
-
 read -p "Enter AWS AccessKey : " accessKey
 read -p "Enter AWS SecretKey : " secretKey
 read -p "Enter AWS Session Token : " sessionToken
@@ -37,13 +20,73 @@ export AWS_SECRET_ACCESS_KEY=$secretKey
 export AWS_ACCESS_KEY_ID=$accessKey
 export AWS_SESSION_TOKEN=$sessionToken
 
+
+read -p "[only: a-z, A-Z, 0-9, _] Enter the thing name (box id): " thingName
+if [[ ! $thingName =~ ^[a-zA-Z0-9_]+$ ]]; then
+  echo "Invalid thing name. Only a-z, A-Z, 0-9, _ are allowed."
+  exit 1
+fi
+# read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
+thingType=Box
+
+read -p "[de, us, at, fr] Enter the lower case 2-digit country code where the box will be located: " thingChildGroup
+while [[ ! $thingChildGroup =~ ^(de|us|at|fr)$ ]]; do
+  read -p "Invalid country code. Please enter de, us, at or fr: " thingChildGroup
+done
+
+echo "****************************************************************"
+echo "Naming convention for nice names: <2-digit country code in uppercase>_<city>_<location-name> -> DE_Karlsruhe_Postgalerie"
+echo "*** PLEASE REPLACE DIACRITICS WHEN ENTERING THE ATTRIBUTES ***"
+echo "*** space -> _ | ö -> @oe, Ö -> @Oe | ß -> @ss, é -> @e"
+echo "****************************************************************"
+read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
+while [[ ! $city =~ ^[a-zA-Z0-9_]+$ ]]; do
+  echo "Invalid city name. Only a-z, A-Z, 0-9, _ are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
+done
+read -p "[only: a-z, A-Z, 0-9, _] Enter the zip code where the unit will be located : " zip
+while [[ ! $zip =~ ^[a-zA-Z0-9_]+$ ]]; do
+  echo "Invalid zip code. Only a-z, A-Z, 0-9, _ are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _] Enter the zip code where the unit will be located : " zip
+done
+read -p "[only: a-z, A-Z, 0-9, _] Enter the street and house number where the unit will be located : " street
+while [[ ! $street =~ ^[a-zA-Z0-9_]+$ ]]; do
+  echo "Invalid street name. Only a-z, A-Z, 0-9, _ are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _] Enter the street and house number where the unit will be located : " street
+done
+read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+while [[ ! $locationname =~ ^[a-zA-Z0-9_]+$ ]]; do
+  echo "Invalid location name. Only a-z, A-Z, 0-9, _ are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+done
+read -p "[only: a-z, A-Z, 0-9, _] Enter the company name (MyAppCaf@e)" companyname
+while [[ ! $companyname =~ ^[a-zA-Z0-9_]+$ ]]; do
+  echo "Invalid company name. Only a-z, A-Z, 0-9, _ are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _] Enter the company name (MyAppCaf@e)" companyname
+done
+
+country="Deutschland"
+if ( [ "$thingChildGroup" == "us" ] ); then
+  country="USA"
+fi
+if ( [ "$thingChildGroup" == "at" ] ); then
+  country="@Oesterreich"
+fi
+if ( [ "$thingChildGroup" == "fr" ] ); then
+  country="France"
+fi
+
+nicename=$(echo "$thingChildGroup"|awk '{print toupper($0)}')_${city}_${locationname}
+location=$(echo "$country#$city_$zip#$street")
+hierarchyId="E#MAC#${thingChildGroup^^}#$companyname#$thingName"
+
 # TODO: export keys/token
 
 userpool=eu-central-1_7iLxD02o9
 clientid=41bsovn23a01gv0ogt1ag2ih2p
 
 isValidThing=0
-if [[ "$thingType" != "Server" ]]; then
+if [[ "$thingType" != "box" ]]; then
   return 7
 fi
 echo "Registering a new thing as $thingType"
@@ -114,7 +157,7 @@ aws iot attach-policy --region $region --target $certArn --policy-name franchise
 
 # new thing
 echo "Creating new thing"
-aws iot create-thing --region $region --thing-name $thingName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"City\": \"$city\", \"Nicename\": \"$nicename\"}}"
+aws iot create-thing --region $region --thing-name $thingName --thing-type-name $thingType --attribute-payload "{\"attributes\": {\"hierarchyId\": \"$hierarchyId\", \"location\": \"$location\", \"nicename\": \"$nicename\"}}"
 
 # cert atttachen an thing
 echo "Attaching principal to thing"
@@ -122,7 +165,8 @@ aws iot attach-thing-principal --region $region --thing-name $thingName --princi
 
 # add thing to group
 echo "Adding thing to thing-groups"
-aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName
+aws iot add-thing-to-thing-group --region $region --thing-group-name box --thing-name $thingName
+aws iot add-thing-to-thing-group --region $region --thing-group-name $thingChildGroup --thing-name $thingName
 
 # create role alias
 echo "creating role aliases"
@@ -134,8 +178,6 @@ echo "downloading current solution"
 aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
 docker-compose pull
 
-echo "creating cognito user"
-aws iot add-thing-to-thing-group --region $region --thing-group-name $thingGroup --thing-name $thingName #
 
 username=$thingName@myapp.cafe
 tempPass=$(openssl rand -base64 16)
@@ -145,7 +187,7 @@ password=$(openssl rand -base64 16)
 echo "box cognito password is $password. please check if it set in env file"
 echo "COGNITO_PASSWORD=$password" >> /home/pi/srv/MyAppCafeControl/.env
 
-aws cognito-idp admin-create-user --user-pool-id $userpool --region $region --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=el#mac#d$thingGroup#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
+aws cognito-idp admin-create-user --user-pool-id $userpool --region $region --username $thingName@myapp.cafe --user-attributes Name=email,Value=$username Name=custom:hierarchyId,Value=E#MAC#$thingChildGroup#$thingName --desired-delivery-mediums EMAIL --temporary-password $tempPass
 
 session=$(aws cognito-idp admin-initiate-auth --user-pool-id $userpool --region $region --client-id $clientid --auth-flow ADMIN_NO_SRP_AUTH --auth-parameters USERNAME=$username,PASSWORD=$tempPass | jq -r ".Session")
 echo "session token is $session"
@@ -162,6 +204,9 @@ mkdir -p /home/pi/.ssh/
 touch /home/pi/.ssh/authorized_keys
 publicKey=$(aws s3 cp s3://iot.myapp.cafe/keys/default-public-ssh-key/id_rsa.pub -)
 echo $publicKey >> /home/pi/.ssh/authorized_keys
+
+echo "creating video stream"
+aws kinesisvideo create-stream --stream-name $thingName --data-retention-in-hours 72 --region $region --media-type "video/h264"
 
 echo ""
 echo "# ********************************************"

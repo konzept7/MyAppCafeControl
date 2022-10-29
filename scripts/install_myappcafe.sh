@@ -161,8 +161,20 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
     sudo systemctl start docker.service
 
     if [[ "$installationPackage" == "server" ]]; then
+        
+        echo "Downloading MyAppCafeControl"
+
+        mkdir /home/pi/srv
+        cd /home/pi/srv
+        if [ ! -d "/home/pi/srv/MyAppCafeControl" ] ; then
+            git clone https://github.com/IbsKa/MyAppCafeControl
+        else
+            cd /home/pi/srv/MyAppCafeControl
+            git pull
+        fi
 
         echo "Installing AWS CRT"
+        
         cd /home/pi/srv
         git clone https://github.com/awslabs/aws-crt-nodejs.git
         cd /home/pi/srv/aws-crt-nodejs

@@ -31,7 +31,8 @@ Included are also installation and registration scripts.
 * Execute the shell command with the arguments above. **Only replace &lt;arguments&gt;, the dashes are necessary!**
 
 ```shell
-curl -s https://gist.githubusercontent.com/fbiel/fcbc662bb2707aeed06c4a03c4cc8579/raw/098eb3434cbf5094ab75b9d7f180a82e2e510226/install_myappcafe.sh | bash -s -- <arguments>
+curl -s https://gist.githubusercontent.com/fbiel/fcbc662bb2707aeed06c4a03c4cc8579/raw/ | bash -s -- <arguments>
+# example: curl -s https://gist.githubusercontent.com/fbiel/fcbc662bb2707aeed06c4a03c4cc8579/raw/ | bash -s -- server server <password> 1366,768 192.168.155.17 5005
 ```
 #### 4. Install localproxy (only server)
 
