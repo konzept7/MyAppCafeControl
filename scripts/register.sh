@@ -40,30 +40,30 @@ echo "Naming convention for nice names: <2-digit country code in uppercase>_<cit
 echo "*** PLEASE REPLACE DIACRITICS WHEN ENTERING THE ATTRIBUTES ***"
 echo "*** space -> _ | ö -> @oe, Ö -> @Oe | ß -> @ss, é -> @e"
 echo "****************************************************************"
-read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
-while [[ ! $city =~ ^[a-zA-Z0-9_]+$ ]]; do
-  echo "Invalid city name. Only a-z, A-Z, 0-9, _ are allowed."
-  read -p "[only: a-z, A-Z, 0-9, _] Enter the city where the unit will be located : " city
+read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
+while [[ ! $city =~ ^[a-zA-Z0-9_@.]+$ ]]; do
+  echo "Invalid city name. Only a-z, A-Z, 0-9, _, @, . are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
 done
-read -p "[only: a-z, A-Z, 0-9, _] Enter the zip code where the unit will be located : " zip
-while [[ ! $zip =~ ^[a-zA-Z0-9_]+$ ]]; do
-  echo "Invalid zip code. Only a-z, A-Z, 0-9, _ are allowed."
-  read -p "[only: a-z, A-Z, 0-9, _] Enter the zip code where the unit will be located : " zip
+read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
+while [[ ! $zip =~ ^[a-zA-Z0-9_@.]+$ ]]; do
+  echo "Invalid zip code. Only a-z, A-Z, 0-9, _, @, . are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
 done
-read -p "[only: a-z, A-Z, 0-9, _] Enter the street and house number where the unit will be located : " street
-while [[ ! $street =~ ^[a-zA-Z0-9_]+$ ]]; do
-  echo "Invalid street name. Only a-z, A-Z, 0-9, _ are allowed."
-  read -p "[only: a-z, A-Z, 0-9, _] Enter the street and house number where the unit will be located : " street
+read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
+while [[ ! $street =~ ^[a-zA-Z0-9_@.]+$ ]]; do
+  echo "Invalid street name. Only a-z, A-Z, 0-9, _ , @, .are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
 done
-read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
-while [[ ! $locationname =~ ^[a-zA-Z0-9_]+$ ]]; do
-  echo "Invalid location name. Only a-z, A-Z, 0-9, _ are allowed."
-  read -p "[only: a-z, A-Z, 0-9, _] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+while [[ ! $locationname =~ ^[a-zA-Z0-9_@.]+$ ]]; do
+  echo "Invalid location name. Only a-z, A-Z, 0-9, _, @, . are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
 done
-read -p "[only: a-z, A-Z, 0-9, _] Enter the company name (MyAppCaf@e)" companyname
-while [[ ! $companyname =~ ^[a-zA-Z0-9_]+$ ]]; do
-  echo "Invalid company name. Only a-z, A-Z, 0-9, _ are allowed."
-  read -p "[only: a-z, A-Z, 0-9, _] Enter the company name (MyAppCaf@e)" companyname
+read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
+while [[ ! $companyname =~ ^[a-zA-Z0-9_@.]+$ ]]; do
+  echo "Invalid company name. Only a-z, A-Z, 0-9, _, @, . are allowed."
+  read -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
 done
 
 country="Deutschland"
@@ -77,7 +77,7 @@ if ( [ "$thingChildGroup" == "fr" ] ); then
   country="France"
 fi
 
-nicename=$(echo "$thingChildGroup"|awk '{print toupper($0)}')_${city}_${locationname}
+nicename="$companyname#$locationname"
 location=$(echo "$country#$city_$zip#$street")
 hierarchyId="E#MAC#${thingChildGroup^^}#$companyname#$thingName"
 
@@ -166,7 +166,6 @@ aws iot attach-thing-principal --region $region --thing-name $thingName --princi
 
 # add thing to group
 echo "Adding thing to thing-groups"
-aws iot add-thing-to-thing-group --region $region --thing-group-name box --thing-name $thingName
 aws iot add-thing-to-thing-group --region $region --thing-group-name $thingChildGroup --thing-name $thingName
 
 # create role alias
