@@ -1216,8 +1216,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async shellCommandHandler(job: Job) {
     if (job.status === 'QUEUED') {
-
-      if (!job.jobDocument.command) {
+      const command = job.jobDocument.parameters?.command
+      if (!command) {
         const noCommand = 'a shell command was requested, but there was no command string';
         warn(noCommand)
         const fail = job.Fail(noCommand, "AXXXX");
@@ -1230,7 +1230,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
       try {
-        await awaitableExec(job.jobDocument.command, { cwd: this._serverPath })
+        await awaitableExec(command, { cwd: this._serverPath })
         const success = job.Succeed();
         jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (err) {

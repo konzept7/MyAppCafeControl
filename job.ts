@@ -3,6 +3,7 @@
 // ********************************************
 
 import { mqtt } from 'aws-iot-device-sdk-v2';
+import { nanoid } from 'nanoid';
 import { info } from './log'
 
 function baseJobTopic(thingName: string) {
@@ -114,8 +115,9 @@ const customUpdateTopic = (thingName: string) => `mac/jobs/${thingName}/update`
 // sends an update for the job to aws iot
 function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, connection: mqtt.MqttClientConnection): void {
   info('sending job update', jobRequest);
+  const stepId = nanoid(12)
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
-  connection.publish(customUpdateTopic(thingName), JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
+  connection.publish(customUpdateTopic(thingName), JSON.stringify({ ...jobRequest, stepId }), mqtt.QoS.AtLeastOnce, false);
 }
 
 enum JobOption {
