@@ -1283,7 +1283,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
       const scheduledJobRequest = job.Progress(0.1, 'scheduled');
       scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
-      scheduledJobRequest.statusDetails.message = 'command will be executed';
+      scheduledJobRequest.statusDetails.currentStep = 'command will be executed';
       jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
       try {
@@ -1439,7 +1439,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async rebootHandler(job: Job) {
     const scheduledJobRequest = job.Progress(0.1, 'scheduled');
     scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
-    scheduledJobRequest.statusDetails.message = 'reboot will be executed';
+    scheduledJobRequest.statusDetails.currentStep = 'reboot will be executed';
     jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
     try {
