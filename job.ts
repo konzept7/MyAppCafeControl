@@ -42,7 +42,6 @@ class JobDocument {
 class StatusDetails {
   progress: number | undefined;
   errorCode: string | undefined;
-  message: string | undefined;
   currentStep: string | undefined;
 }
 // the incoming job payload
