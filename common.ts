@@ -37,7 +37,7 @@ async function awaitableExec(
       log('message from exec: ' + message.toString());
     })
     child.on('exit', (code) => {
-      if (!code || code !== 0) {
+      if (code !== 0) {
         error('child process exited with code', code)
         reject(code)
       }
