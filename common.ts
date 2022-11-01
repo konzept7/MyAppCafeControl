@@ -27,8 +27,8 @@ async function awaitableExec(command: string, options: ExecOptions): Promise<str
     })
 
     child.on('message', (message) => {
-      stringBuilder += message;
-      log(message.toString());
+      stringBuilder += message.toString();
+      log('message from exec: ' + message.toString());
     })
     child.on('exit', (code) => {
       if (code !== 0) {
