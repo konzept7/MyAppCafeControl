@@ -70,14 +70,14 @@ class Job {
     this.status = 'SUCCEEDED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.progress = 1;
-    if (message) this.statusDetails.message = message;
+    if (message) this.statusDetails.currentStep = message;
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
     info('failing job with id ' + this.jobId, reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
-    this.statusDetails.message = reason;
+    this.statusDetails.currentStep = reason;
     this.statusDetails.errorCode = errorCode;
     return new JobRequest(this)
   }
