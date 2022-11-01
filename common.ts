@@ -31,6 +31,10 @@ async function awaitableExec(command: string, options: ExecOptions): Promise<str
       log(message.toString());
     })
     child.on('exit', (code) => {
+      if (code !== 0) {
+        error('child process exited with code', code)
+        reject(code)
+      }
       log('child process exited with code ' + code)
       resolve(stringBuilder);
     })

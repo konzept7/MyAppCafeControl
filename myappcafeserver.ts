@@ -588,12 +588,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
-      const uploadCmd = `aws s3 cp /home/pi/logs.txt s3://myappcafecontrol-logs/${this._thingName}/${fileName}`;
+      const uploadCmd = `aws s3 cp ${fileName} s3://myappcafecontrol-logs/${this._thingName}/${fileName}`;
       await awaitableExec([envCommand, uploadCmd].join(';'), { timeout: 10000 });
       jobUpdate(job.jobId, job.Progress(0.8, "filesUploaded"), this._thingName, this._connection);
 
       const presignCommand = `aws s3 presign s3://myappcafecontrol-logs/${this._thingName}/${fileName}`;
       const presignUrl = await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 });
+      log('presign url from exec', presignUrl);
       jobUpdate(job.jobId, job.Succeed('CUSTOM#' + presignUrl), this._thingName, this._connection);
     } catch (err) {
       error('upload logs failed', { err })
@@ -941,7 +942,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           return;
         }
         log('successfully written .env file')
-        jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
+        jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
       })
     } catch (err) {
       error('error downloading .env file', err)
@@ -1043,14 +1044,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     if (job.status !== 'QUEUED') return;
     try {
       info('shutdown job received', job)
-      jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection);
       info('current state of server application', this._state)
 
       const option = job.jobDocument?.option ?? JobOption.soft;
       if (option === JobOption.soft) {
+        jobUpdate(job.jobId, job.Progress(0.2, "waitOrdersFinished"), this._thingName, this._connection);
         await this.waitForOrdersToFinish(10);
       }
-      jobUpdate(job.jobId, job.Progress(0.5, "all orders finished"), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Progress(0.5, "allOrdersFinished"), this._thingName, this._connection);
 
       if (this._state === ServerState.Okay) {
         log('pausing application before shutting it down');
@@ -1061,22 +1063,25 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           error('error while waiting for application to be paused', err)
         }
       }
-      jobUpdate(job.jobId, job.Progress(0.75, "if application was running, it is now set to pause"), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Progress(0.75, "pauseBeforeShutdown"), this._thingName, this._connection);
 
       if (option === JobOption.forced && this.state !== ServerState.closed) {
         log('shutdown is forced, so we will delete open orders');
         try {
           await axios.delete(this._url + "order");
+          jobUpdate(job.jobId, job.Progress(0.85, "deletingOldOrders"), this._thingName, this._connection);
         } catch (err) {
           warn('it was not possible to delete running orders, we will still continue', err)
         }
       }
 
+      jobUpdate(job.jobId, job.Progress(0.9, "shuttingDown"), this._thingName, this._connection);
       await this.shutdownGracefully(20);
       await this.stop();
-      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
     } catch (err) {
       error('error shutting down application', err)
+      jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
     }
   }
 
@@ -1282,7 +1287,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
       try {
         await awaitableExec(command, { cwd: this._serverPath })
-        const success = job.Succeed();
+        const success = job.Succeed("success");
         jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (err) {
         error('error while executing shell command', err)
@@ -1438,7 +1443,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     try {
       await awaitableExec("sudo reboot", { cwd: this._serverPath })
-      const success = job.Succeed();
+      const success = job.Succeed("success");
       jobUpdate(job.jobId, success, this._thingName, this._connection);
     } catch (err) {
       error('error while executing reboot', err)
@@ -1489,7 +1494,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       log('got request to disable notifications', job)
       const result = await axios.post(this._url + 'notifications/disable')
       if (result.status === 200) {
-        jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+        jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection)
         return
       }
       const fail = job.Fail('could not disable notifications', "AXXXX");
@@ -1501,7 +1506,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     log('got request to enable notifications', job)
     const result = await axios.post(this._url + 'notifications/enable')
     if (result.status === 200) {
-      jobUpdate(job.jobId, job.Succeed(), this._thingName, this._connection)
+      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection)
       return
     }
     const fail = job.Fail('could not enable notifications', "AXXXX");

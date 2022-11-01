@@ -53,7 +53,7 @@ class Job {
   lastUpdatedAt!: number;
   jobDocument!: JobDocument;
   statusDetails: StatusDetails | undefined;
-  public Progress(progress: number | undefined, step: string | undefined): JobRequest {
+  public Progress(progress: number, step: string): JobRequest {
     info('progressing job with id ' + this.jobId)
     if (step) info('job is progressed with step', step)
     this.status = 'IN_PROGRESS';
@@ -65,12 +65,12 @@ class Job {
     }
     return new JobRequest(this);
   }
-  public Succeed(details: string | undefined = undefined): JobRequest {
+  public Succeed(message: string): JobRequest {
     info('succeeding job with id ' + this.jobId)
     this.status = 'SUCCEEDED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.progress = 1;
-    if (details) this.statusDetails.message = details;
+    if (message) this.statusDetails.message = message;
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
