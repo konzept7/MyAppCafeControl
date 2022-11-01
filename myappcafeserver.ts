@@ -583,12 +583,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       };
       jobUpdate(job.jobId, job.Progress(0.1, "credentials"), this._thingName, this._connection);
       const fileName = `mac-control-journal-${new Date().toISOString()}.txt`;
-      const journalCmd = `journalctl -u myappcafecontrol.service -o short > /home/pi/${fileName}`;
+      const path = `/home/pi/${fileName}`;
+      const journalCmd = `journalctl -u myappcafecontrol.service -o short > ${path}`;
       await awaitableExec(journalCmd, { timeout: 10000 });
       jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
-      const uploadCmd = `aws s3 cp ${fileName} s3://myappcafecontrol-logs/${this._thingName}/${fileName}`;
+      const uploadCmd = `aws s3 cp ${path} s3://myappcafecontrol-logs/${this._thingName}/${fileName}`;
       await awaitableExec([envCommand, uploadCmd].join(';'), { timeout: 10000 });
       jobUpdate(job.jobId, job.Progress(0.8, "filesUploaded"), this._thingName, this._connection);
 
