@@ -586,7 +586,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const path = `/home/pi/${fileName}`;
       const s3Uri = `s3://temp.myapp.cafe/control-logs/${this._thingName}/${fileName}`
       const journalCmd = `journalctl -u myappcafecontrol.service -o short > ${path}`;
-      await awaitableExec(journalCmd, { timeout: 10000 });
+      await awaitableExec(journalCmd, { timeout: 10000 }, () => { }, () => { });
       jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
@@ -595,7 +595,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(0.8, "filesUploaded"), this._thingName, this._connection);
 
       const presignCommand = `aws s3 presign ${s3Uri}`;
-      const presignUrl = await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 });
+      let presignUrl;
+      await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 }, (stdOut) => { presignUrl = stdOut }, () => { });
       log('presign url from exec:' + presignUrl);
       jobUpdate(job.jobId, job.Succeed('CUSTOM#' + presignUrl), this._thingName, this._connection);
     } catch (err) {
