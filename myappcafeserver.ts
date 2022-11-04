@@ -1289,15 +1289,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
       try {
-        await awaitableExec(command, { cwd: this._serverPath })
-        const success = job.Succeed("success");
+        let stdOut;
+        await awaitableExec(command, { cwd: this._serverPath }, (out) => { stdOut = out });
+        const success = job.Succeed("CUSTOM#" + stdOut);
         jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (err) {
         error('error while executing shell command', err)
         const fail = job.Fail('error while executing shell command: ' + err, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
-
     }
   }
 
@@ -1439,19 +1439,47 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async rebootHandler(job: Job) {
-    const scheduledJobRequest = job.Progress(0.1, 'scheduled');
-    scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
-    scheduledJobRequest.statusDetails.currentStep = 'reboot will be executed';
-    jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
 
-    try {
-      await awaitableExec("sudo reboot", { cwd: this._serverPath })
-      const success = job.Succeed("success");
-      jobUpdate(job.jobId, success, this._thingName, this._connection);
-    } catch (err) {
-      error('error while executing reboot', err)
-      const fail = job.Fail('error while executing reboot: ' + err, "AXXXX");
-      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+    jobUpdate(job.jobId, job.Progress(0.01, 'registered'), this._thingName, this._connection);
+
+    if (job.status === 'QUEUED') {
+      try {
+        const scheduleReboot = async () => {
+          if (job.jobDocument.option === JobOption.soft) {
+            jobUpdate(job.jobId, job.Progress(0.25, "waitUntilPossible"), this._thingName, this._connection);
+          }
+          this.once(ServerEvents.readyForUpdate, async () => {
+            log('server is now in state ' + this.state + ' -> reboot can be executed now')
+            if (this.state !== ServerState.closed) await this.shutdownGracefully(10)
+            jobUpdate(job.jobId, job.Progress(0.4, "scheduled"), this._thingName, this._connection);
+            await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath })
+            await sleep(55000)
+            jobUpdate(job.jobId, job.Progress(0.4, "rebooting"), this._thingName, this._connection);
+          })
+        }
+        if (job.jobDocument.option !== JobOption.soft) {
+          if (job.jobDocument.option === JobOption.hard) {
+            jobUpdate(job.jobId, job.Progress(0.1, "waitForOrders"), this._thingName, this._connection);
+            await this.waitForOrdersToFinish(10);
+            jobUpdate(job.jobId, job.Progress(0.2, "allOrdersFinished"), this._thingName, this._connection);
+          }
+          scheduleReboot();
+          await this.shutdownGracefully(10);
+        }
+
+      } catch (err) {
+        error('error while executing reboot', err)
+        const fail = job.Fail('failed', "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      }
+    }
+    else if (job.status === 'IN_PROGRESS') {
+      jobUpdate(job.jobId, job.Progress(0.7, "rebootSuccessful"), this._thingName, this._connection);
+      await this.startContainers(this._containers)
+      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+    }
+    else {
+      jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
     }
   }
 

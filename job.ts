@@ -128,6 +128,11 @@ enum JobOption {
   unblock = "unblock",
   deviceshutdown = "ShutDown",
   devicedisabled = "Disabled",
+  on = "on",
+  off = "off",
+  noAutostart = "no-autostart",
+  autostart = "autostart",
+  immediateRestart = "immediate-restart",
 }
 
 export { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS, jobUpdate, StatusDetails, JobOption }
