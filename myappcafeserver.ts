@@ -46,7 +46,7 @@ export enum ServerEvents {
   allOrdersFinished = "allOrdersFinished"
 }
 
-
+const awsPath = "/home/pi/.local/bin/aws";
 class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _retryTime = 24 * 60 * 60 * 1000;
   private _stateConnection!: any;
@@ -590,11 +590,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
-      const uploadCmd = `aws s3 cp ${path} ${s3Uri}`;
+      const uploadCmd = `${awsPath} s3 cp ${path} ${s3Uri}`;
       await awaitableExec([envCommand, uploadCmd].join(';'), { timeout: 10000 });
       jobUpdate(job.jobId, job.Progress(0.8, "filesUploaded"), this._thingName, this._connection);
 
-      const presignCommand = `aws s3 presign ${s3Uri}`;
+      const presignCommand = `${awsPath} s3 presign ${s3Uri}`;
       let presignUrl;
       await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 }, (stdOut) => { presignUrl = stdOut }, () => { });
       await awaitableExec(`rm ${path}`, { timeout: 10000 }, () => { }, () => { });
