@@ -597,6 +597,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const presignCommand = `aws s3 presign ${s3Uri}`;
       let presignUrl;
       await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 }, (stdOut) => { presignUrl = stdOut }, () => { });
+      await awaitableExec(`rm ${path}`, { timeout: 10000 }, () => { }, () => { });
       log('presign url from exec:' + presignUrl);
       jobUpdate(job.jobId, job.Succeed('CUSTOM#' + presignUrl), this._thingName, this._connection);
     } catch (err) {
