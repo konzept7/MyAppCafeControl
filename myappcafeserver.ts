@@ -1440,18 +1440,25 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async rebootHandler(job: Job) {
 
+    const reboot = async () => {
+      log('server is now in state ' + this.state + ' -> reboot can be executed now')
+      if (this.state !== ServerState.closed) await this.shutdownGracefully(10)
+      jobUpdate(job.jobId, job.Progress(0.4, "scheduled"), this._thingName, this._connection);
+      await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath })
+      await sleep(55000)
+      jobUpdate(job.jobId, job.Progress(0.4, "rebooting"), this._thingName, this._connection);
+    }
+
     const scheduleReboot = async () => {
       if (job.jobDocument.option === JobOption.soft) {
         jobUpdate(job.jobId, job.Progress(0.25, "waitUntilPossible"), this._thingName, this._connection);
       }
       this.once(ServerEvents.readyForUpdate, async () => {
-        log('server is now in state ' + this.state + ' -> reboot can be executed now')
-        if (this.state !== ServerState.closed) await this.shutdownGracefully(10)
-        jobUpdate(job.jobId, job.Progress(0.4, "scheduled"), this._thingName, this._connection);
-        await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath })
-        await sleep(55000)
-        jobUpdate(job.jobId, job.Progress(0.4, "rebooting"), this._thingName, this._connection);
+        reboot()
       })
+      if (this.isNotOperating) {
+        this.emit(ServerEvents.readyForUpdate)
+      }
     }
 
     if (job.status === 'QUEUED') {
