@@ -1466,6 +1466,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
           scheduleReboot();
           await this.shutdownGracefully(10);
+        } else {
+          scheduleReboot();
         }
 
       } catch (err) {
