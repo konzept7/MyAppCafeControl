@@ -5,11 +5,20 @@ import {
 import { log, error } from './log'
 
 
-async function awaitableExec(command: string, options: ExecOptions): Promise<number> {
+async function awaitableExec(
+  command: string,
+  options: ExecOptions,
+  onOut: (m: string) => void = () => { },
+  onErr: (e: string) => void = () => { }
+): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = exec(command, options, (err, stdOut, stdErr) => {
       log(stdOut)
-      if (stdErr) error(stdErr)
+      onOut(stdOut)
+      if (stdErr) {
+        onErr(stdErr)
+        error(stdErr)
+      }
       if (err) {
         error('error executing child process', err)
         reject(error)
@@ -23,10 +32,15 @@ async function awaitableExec(command: string, options: ExecOptions): Promise<num
         return
       }
     })
+
     child.on('message', (message) => {
-      log(message.toString());
+      log('message from exec: ' + message.toString());
     })
     child.on('exit', (code) => {
+      if (code !== 0) {
+        error('child process exited with code', code)
+        reject(code)
+      }
       log('child process exited with code ' + code)
       resolve(code || 0);
     })

@@ -3,6 +3,7 @@
 // ********************************************
 
 import { mqtt } from 'aws-iot-device-sdk-v2';
+import { nanoid } from 'nanoid';
 import { info } from './log'
 
 function baseJobTopic(thingName: string) {
@@ -41,7 +42,6 @@ class JobDocument {
 class StatusDetails {
   progress: number | undefined;
   errorCode: string | undefined;
-  message: string | undefined;
   currentStep: string | undefined;
 }
 // the incoming job payload
@@ -52,7 +52,7 @@ class Job {
   lastUpdatedAt!: number;
   jobDocument!: JobDocument;
   statusDetails: StatusDetails | undefined;
-  public Progress(progress: number | undefined, step: string | undefined): JobRequest {
+  public Progress(progress: number, step: string): JobRequest {
     info('progressing job with id ' + this.jobId)
     if (step) info('job is progressed with step', step)
     this.status = 'IN_PROGRESS';
@@ -64,19 +64,19 @@ class Job {
     }
     return new JobRequest(this);
   }
-  public Succeed(details: string | undefined = undefined): JobRequest {
+  public Succeed(message: string): JobRequest {
     info('succeeding job with id ' + this.jobId)
     this.status = 'SUCCEEDED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.progress = 1;
-    if (details) this.statusDetails.message = details;
+    if (message) this.statusDetails.currentStep = message;
     return new JobRequest(this)
   }
   public Fail(reason: string, errorCode: string): JobRequest {
     info('failing job with id ' + this.jobId, reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
-    this.statusDetails.message = reason;
+    this.statusDetails.currentStep = reason;
     this.statusDetails.errorCode = errorCode;
     return new JobRequest(this)
   }
@@ -114,8 +114,9 @@ const customUpdateTopic = (thingName: string) => `mac/jobs/${thingName}/update`
 // sends an update for the job to aws iot
 function jobUpdate(jobId: string, jobRequest: JobRequest, thingName: string, connection: mqtt.MqttClientConnection): void {
   info('sending job update', jobRequest);
+  const stepId = nanoid(12)
   connection.publish(baseJobTopic(thingName) + jobId + '/update', JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
-  connection.publish(customUpdateTopic(thingName), JSON.stringify(jobRequest), mqtt.QoS.AtLeastOnce, false);
+  connection.publish(customUpdateTopic(thingName), JSON.stringify({ ...jobRequest, stepId }), mqtt.QoS.AtLeastOnce, false);
 }
 
 enum JobOption {
@@ -127,6 +128,11 @@ enum JobOption {
   unblock = "unblock",
   deviceshutdown = "ShutDown",
   devicedisabled = "Disabled",
+  on = "on",
+  off = "off",
+  noAutostart = "no-autostart",
+  autostart = "autostart",
+  immediateRestart = "immediate-restart",
 }
 
 export { baseJobTopic, Job, JobDocument, JobRequest, JOBTOPICS, jobUpdate, StatusDetails, JobOption }

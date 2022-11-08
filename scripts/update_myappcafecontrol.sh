@@ -24,7 +24,10 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     echo 'WorkingDirectory=/home/pi/srv/MyAppCafeControl/' | sudo tee -a myappcafecontrol.service
     echo 'StandardOutput=/home/pi/srv/MyAppCafeControl/log.txt' | sudo tee -a myappcafecontrol.service
     echo 'StandardError=/home/pi/srv/MyAppCafeControl/log.txt' | sudo tee -a myappcafecontrol.service
-    echo 'Restart=always' | sudo tee -a myappcafecontrol.service
+    echo 'RestartSec=10' | sudo tee -a myappcafecontrol.service
+    echo 'Restart=on-failure' | sudo tee -a myappcafecontrol.service
+    echo 'StartLimitIntervalSec=60' | sudo tee -a myappcafecontrol.service
+    echo 'StartLimitBurst=10' | sudo tee -a myappcafecontrol.service
     echo 'User=pi' | sudo tee -a myappcafecontrol.service
     echo '' | sudo tee -a myappcafecontrol.service
     echo '[Install]' | sudo tee -a myappcafecontrol.service
