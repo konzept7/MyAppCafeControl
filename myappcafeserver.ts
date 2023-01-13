@@ -13,6 +13,7 @@ import { SessionCredentials } from './sessionCredentials';
 import { Tunnel } from './tunnel'
 import { log, warn, info, error, debug } from './log'
 import { Rm, RobotTest } from './RobotTest';
+import Net from 'net';
 
 // control docker with dockerode
 import Dockerode from 'dockerode';
@@ -557,6 +558,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         return await this.uploadLogsHandler(job);
       }
 
+      if (operation === 'lights') {
+        return await this.lightsHandler(job);
+      }
+
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknownOperation", "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -569,6 +574,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
     }
   }
+
   async uploadLogsHandler(job: Job) {
     console.log('upload logs requested');
 
@@ -587,7 +593,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const s3Uri = `s3://temp.myapp.cafe/control-logs/${this._thingName}/${fileName}`
       const journalCmd = `journalctl -u myappcafecontrol.service -o short > ${path}`;
       await awaitableExec(journalCmd, { timeout: 10000 }, () => { }, () => { });
-      jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
+      jobUpdate(job.jobId, job.Progress(0.4, "filesWritten"), this._thingName, this._connection);
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
       const uploadCmd = `${awsPath} s3 cp ${path} ${s3Uri}`;
@@ -600,6 +606,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       await awaitableExec(`rm ${path}`, { timeout: 10000 }, () => { }, () => { });
       log('presign url from exec:' + presignUrl);
       jobUpdate(job.jobId, job.Succeed('CUSTOM#' + presignUrl), this._thingName, this._connection);
+
     } catch (err) {
       error('upload logs failed', { err })
       jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
@@ -1530,6 +1537,41 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
   }
 
+  async lightsHandler(job: Job) {
+    jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection)
+    const isOn = job.jobDocument.option === JobOption.on
+    log('turning lights ' + (isOn ? 'on' : 'off'))
+
+    const client = new Net.Socket();
+    const ip = process.env.CONTROLLINO_IP!
+    const port = parseInt(process.env.CONTROLLINO_PORT!)
+    log('connecting to controllino with ip ' + ip + ' and port ' + port)
+    client.connect(port, ip, () => {
+      log('connected to controllino')
+      const command = isOn ? '2;1<EOF>' : '2;2<EOF>'
+      client.write(command)
+    })
+
+    client.on('data', (data) => {
+      log('controllino response: ' + data)
+      if (data.toString().toUpperCase().includes('OK')) {
+        jobUpdate(job.jobId, job.Succeed('success'), this._thingName, this._connection)
+      } else {
+        jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
+      }
+      client.destroy();
+    });
+
+    // reject if no response after 5 seconds
+    setTimeout(() => {
+      jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
+      client.destroy();
+    }, 5000)
+
+    client.on('close', () => {
+      console.log('Connection closed');
+    });
+  }
 
   async disableNotificationsHandler(job: Job) {
     if (job.jobDocument.option === JobOption.block) {

@@ -206,7 +206,7 @@ fi
 # install and set up browser kiosk
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "display" ]]; then
     echo 'Installing required software for browser-kiosk...'
-    sudo apt-get -y install chromium-browser unclutter lightdm
+    sudo apt-get -y install chromium-browser unclutter lightdm fonts-noto-color-emoji
     echo '-----------------------------------------------------------'
     echo
 
