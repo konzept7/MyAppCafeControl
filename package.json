@@ -8,7 +8,7 @@
     "build": "tsc --build",
     "clean": "tsc --build --clean"
   },
-  "author": "Frank Bielecke, (C) IBS Dr. Klaus Schnürer GmbH 2021",
+  "author": "Frank Bielecke, Sören Grüßinger, (C) K-7 Konzept Karlsruhe GmbH 2023",
   "license": "ISC",
   "dependencies": {
     "@microsoft/signalr": "^5.0.5",

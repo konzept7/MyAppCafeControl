@@ -167,7 +167,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         mkdir /home/pi/srv
         cd /home/pi/srv
         if [ ! -d "/home/pi/srv/MyAppCafeControl" ] ; then
-            git clone https://github.com/IbsKa/MyAppCafeControl
+            git clone https://github.com/konzept7/MyAppCafeControl
         else
             cd /home/pi/srv/MyAppCafeControl
             git pull
