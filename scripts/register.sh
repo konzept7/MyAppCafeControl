@@ -81,8 +81,6 @@ nicename="$companyname#$locationname"
 location=$(echo "$country#$city_$zip#$street")
 hierarchyId="E#MAC#${thingChildGroup^^}#$companyname#$thingName"
 
-# TODO: export keys/token
-
 userpool=eu-central-1_7iLxD02o9
 clientid=41bsovn23a01gv0ogt1ag2ih2p
 

@@ -26,11 +26,9 @@ class Thing {
 class ThingFactory {
   static async createThing(thingName: string, region: string): Promise<Thing> {
     return new Promise((resolve, reject) => {
-      // TODO: get credentials the right way (refer to iot security)
       try {
         config.getCredentials(function (err: any) {
           if (err) console.log(err.stack);
-          // credentials not loaded
           else {
             console.log("Access key:", config?.credentials?.accessKeyId);
           }
