@@ -1,61 +1,114 @@
 #!/bin/bash
 
-echo
-echo '########################'
-echo '       MyAppCafé'
-echo '     INSTALL SCRIPT'
-echo '########################'
-echo
+echo '###########################################################'
+echo '#                                                         #'
+echo '# MyAppCafe Install script                                #'
+echo '#                                                         #'
+echo '###########################################################'
 
-if [[ "$1" == "" ]] || [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "--h" ]]; then
-    echo
-    echo "HELP"
-    echo "    Install script to auto-configure pi to be integrated into MyAppCafé-Box."
-    echo "    Use arguments to configure this pi to your liking."
-    echo
-    echo "SYNTAX"
-    echo "    install_myappcafe.sh PACKAGE HOSTNAME PASSWORD [RESOLUTION] [SERVERIP] [SERVERPORT] [STREAMNAME] [AWSACCESS] [AWSSECRET] [AWSREGION]"
-    echo
-    echo "DESCRIPTION"
-    echo "    PACKAGE     define generic software and config setup (see below)"
-    echo "    HOSTNAME    hostname for this machine"
-    echo "    PASSWORD    set password for user 'pi'"
-    echo "    RESOLUTION  set resolution for kiosk mode, e.g. 1366,768 or 1920,1080"
-    echo "    SERVERIP    define ip for the server to grab the webpage from (in desktop mode)"
-    echo "    SERVERPORT  define port to grab the webpage from (in desktop mode)"
-    echo "    STREAMNAME  define name for the camera stream (when installing camera package)"
-    echo "    AWSACCESS   define AWS Access Key (when installing camera package)"
-    echo "    AWSSECRET   define AWS Secret Key (when installing camera package)"
-    echo "    AWSREGION   define AWS Region (when installing camera package)"
-    echo
-    echo "PACKAGES"
-    echo "    server        desktop, browserkiosk, docker, docker-compose"
-    echo "    display       browserkiosk"
-    echo "    camera        console, camera-setup, stream-setup"
-    echo "    gate          console, docker"
-    echo
-    echo "Example:"
-    echo "  ./install_myappcafe.sh display queue abc123 1920,1080 192.168.0.17 5007"
-    echo
-    exit 0
+#!/bin/bash
+
+home="/home/pi"
+
+# Prompt the user to select an installation package
+options=("Server" "Terminal left" "Terminal right" "Queue" "Camera" "Gate1" "Gate2" "Gate3")
+echo "Please select the desired installation package:"
+select package in "${options[@]}"
+do
+    case $package in
+        "Server"|"Terminal left"|"Terminal right"|"Queue")
+            # Prompt the user to select a resolution
+            echo "$package is a display device. Please select the desired resolution:"
+            resolutions=("1366x768" "1024x768")
+            select resolution in "${resolutions[@]}"
+            do
+                break
+            done
+            break
+            ;;
+        *)
+            break;
+            break;
+            ;;
+    esac
+done
+
+# setting IPs
+if [[ "$package" == "Server" ]]; then
+    myip="192.168.155.17"
+    serverip="192.168.155.17"
+    hostname="SERVER"
+    serverport="5005"
+    installationPackage="server"
 fi
-if [[ "$1" == "--version" ]] || [[ "$1" == "--v" ]]; then
-    echo "Version 1.5"
-    echo
-    exit 0
+if [[ "$package" == "Terminal left" ]]; then
+    myip="192.168.155.25"
+    serverip="192.168.155.17"
+    hostname="TERMINAL-LEFT"
+    serverport="5006"
+    installationPackage="display"
+fi
+if [[ "$package" == "Terminal right" ]]; then
+    myip="192.168.155.26"
+    serverip="192.168.155.17"    
+    hostname="TERMINAL-RIGHT"
+    serverport="5006"
+    installationPackage="display"
+fi
+if [[ "$package" == "Queue" ]]; then
+    myip="192.168.155.31"
+    serverip="192.168.155.17"
+    hostname="QUEUE"
+    serverport="5007"
+    installationPackage="display"
+fi
+if [[ "$package" == "Camera" ]]; then
+
+    echo "We need some more information to install the camera package"
+
+    read -p "Enter Streamname: " streamname
+    read -p "Enter AWS Access Key Id: " awsaccess
+    read -p "Enter AWS Secret Access Key: " awssecret
+    regions=("us-east-1" "eu-central-1" "us-west-1")
+    select awsregion in "${regions[@]}"
+    do
+        echo "Selected region: $awsregion"
+        break
+    done
+
+    myip="192.168.155.32"
+    serverip="192.168.155.17"
+    hostname="CAM"
+    installationPackage="camera"
+fi
+if [[ "$package" == "Gate1" ]]; then
+    myip="192.168.155.21"
+    hostname="GATE1"
+    installationPackage="gate"
+fi
+if [[ "$package" == "Gate2" ]]; then
+    myip="192.168.155.22"
+    hostname="GATE2"
+    installationPackage="gate"
+fi
+if [[ "$package" == "Gate3" ]]; then
+    myip="192.168.155.23"
+    hostname="GATE3"
+    installationPackage="gate"
 fi
 
+# Prompt the user to set a password
+read -s -p "Enter password for user 'pi': " password
 
-installationPackage=$1
-hostname=$2
-password=$3
-resolution=$4
-serverip=$5
-serverport=$6
-streamname=$7
-awsaccess=$8
-awssecret=$9
-awsregion=$10
+# Let user select the time zone
+echo "Please select your timezone:"
+timezones=("Europe/Berlin" "America/New_York" "America/Los_Angeles")
+echo "Please select the desired installation package:"
+select tz in "${timezones[@]}"
+do
+  sudo timedatectl set-timezone $tz;
+  break;
+done
 
 # check incoming arguments
 if [[ "$hostname" == "" ]]; then
@@ -102,6 +155,15 @@ if [[ "$installationPackage" == "camera" ]]; then
 fi
 
 
+echo '###########################################################'
+echo '#                                                         #'
+echo '# Okay, we know everything                                #'
+echo '# Installation starts in 10 seconds                       #'
+echo '# You can rest now                                        #'
+echo '#                                                         #'
+echo '###########################################################'
+
+
 echo 'Configuring pi...'
 echo "  - changing password"
 sudo usermod --password $(echo $password | openssl passwd -1 -stdin) pi
@@ -109,7 +171,7 @@ sudo usermod --password $(echo $password | openssl passwd -1 -stdin) pi
 echo "  - setting hostname"
 sudo sed -i -E 's/127.0.1.1\t.+/127.0.1.1\t'$hostname'/' /etc/hosts
 sudo rm /etc/hostname
-echo $hostname | sudo tee -a /etc/hostname
+echo "$hostname" | sudo tee -a /etc/hostname
 
 echo "  - disabling wifi and bluetooth"
 echo 'dtoverlay=disable-wifi' | sudo tee -a /boot/config.txt
@@ -250,11 +312,13 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
 
     # update myappcafecontrol during boot (make sure file is executable)
     # and every month on the 15th, because we usually don't reboot
-    sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
-    (crontab -l ; echo "@reboot /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
-    (crontab -l ; echo "0 2 15 * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
-    # fallback solution for script-hang (nightly restart)
-    (crontab -l ; echo "30 2 * * * sudo systemctl restart myappcafecontrol.service") | crontab -
+    if [[ "$installationPackage" == "server" ]]; then
+      sudo chmod ugo+x /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh
+      (crontab -l ; echo "@reboot /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
+      (crontab -l ; echo "0 2 15 * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
+      # fallback solution for script-hang (nightly restart)
+      (crontab -l ; echo "30 2 * * * sudo systemctl restart myappcafecontrol.service") | crontab -
+    fi
 
     # for display-only devices set up quiet/invisible boot
     if [[ "$installationPackage" == "display" ]]; then
@@ -287,15 +351,15 @@ if [[ "$installationPackage" == "camera" ]]; then
     git clone --recursive https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
     mkdir -p amazon-kinesis-video-streams-producer-sdk-cpp/build
     cd amazon-kinesis-video-streams-producer-sdk-cpp/build
-    cmake .. -BUILD_GSTREAMER_PLUGIN=ON -DBUILD_JNI=TRUE
+    cmake .. -DBUILD_GSTREAMER_PLUGIN=ON -DBUILD_JNI=TRUE
     sudo apt-get install libssl-dev libcurl4-openssl-dev liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools
     make
     cd ..
-    export GST_PLUGIN_PATH=`pwd`/build
-    export LD_LIBRARY_PATH=`pwd`/open-source/local/lib
+    export GST_PLUGIN_PATH=$(pwd)/build
+    export LD_LIBRARY_PATH=$(pwd)/open-source/local/lib
 
     cd /home/pi/amazon-kinesis-video-streams-producer-sdk-cpp
-    export GST_PLUGIN_PATH=`pwd`build
+    export GST_PLUGIN_PATH=$(pwd)build
 
     echo 'export GST_PLUGIN_PATH=$PATH:/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | sudo tee -a /home/.profile
 
@@ -332,14 +396,40 @@ if [[ "$installationPackage" == "camera" ]]; then
     sudo systemctl start myappcafecamera.service
 fi
 
+routerip="192.168.155.1"
+touch /home/pi/set-ip.sh
+cat > /home/pi/set-ip.sh << EOF
+    sudo mv /etc/dhcpcd.conf /etc/dhcpcd.conf.bak
+    sudo touch /etc/dhcpcd.conf
+    sudo chmod 777 /etc/dhcpcd.conf
+    
+    echo "hostname" >> /etc/dhcpcd.conf
+    echo "clientid" >> /etc/dhcpcd.conf
+    echo "persistent" >> /etc/dhcpcd.conf
+    echo "require dhcp_server_identifier" >> /etc/dhcpcd.conf
+    echo "slaac private" >> /etc/dhcpcd.conf
+    echo "interface eth0" >> /etc/dhcpcd.conf
+    echo "option interface" >> /etc/dhcpcd.conf
+    echo "static ip_address=$myip" >> /etc/dhcpcd.conf
+    echo "static routers=$routerip" >> /etc/dhcpcd.conf
+    echo "static domain_name_servers=$routerip" >> /etc/dhcpcd.conf
+EOF
+sudo chmod +x set-ip.sh
 
 echo
 echo
 echo '###########################################################'
-echo 'Installation completed!'
-echo
-echo 'Rebooting pi in 10 seconds'
-echo
+echo '#                                                         #'
+echo '# Installation complete!                                  #'
+echo '#                                                         #'
+echo '# Execute ./set-ip.sh to set a static IP                  #'
+echo '#                                                         #'
+echo '# Rebooting Pi in 1 minute, interrupt with CTRL+C         #'
+echo '#                                                         #'
+echo '###########################################################'
+echo ''
+echo ''
+sleep 50
+echo 'Rebooting in 10 seconds...'
 sleep 10
 sudo reboot
-echo 'Rebooting...'
