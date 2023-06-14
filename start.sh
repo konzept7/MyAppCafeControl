@@ -5,7 +5,7 @@
 cd $(dirname $0)
 
 # get current changes and build
-git pull https://github.com/IbsKa/MyAppCafeControl.git
+git pull https://github.com/konzept7/MyAppCafeControl.git
 cp docker-compose.yml /home/pi/srv/docker-compose.yml
 node index.js >> control.log
 

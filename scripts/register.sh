@@ -28,7 +28,7 @@ while [[ ! $thingName =~ ^[a-zA-Z0-9_-]+$ ]]; do
 done
 
 # read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
-thingType=Box
+thingType=box
 
 read -p "[de, us, at, fr] Enter the lower case 2-digit country code where the box will be located: " thingChildGroup
 while [[ ! $thingChildGroup =~ ^(de|us|at|fr)$ ]]; do
@@ -86,7 +86,7 @@ clientid=41bsovn23a01gv0ogt1ag2ih2p
 
 isValidThing=0
 if [[ "$thingType" != "box" ]]; then
-  return 7
+  exit 7
 fi
 echo "Registering a new thing as $thingType"
 region=eu-central-1

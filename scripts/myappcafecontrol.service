@@ -1,15 +1,17 @@
-    [Unit]
-    Description=MyAppCafeControl
-    After=network.target
-    
-    [Service]
-    ExecStart=/usr/bin/node dist/index.js
-    WorkingDirectory=/home/pi/srv/MyAppCafeControl/
-    StandardOutput=file:/home/pi/srv/MyAppCafeControl/log.txt
-    StandardError=file:/home/pi/srv/MyAppCafeControl/log.txt
-    Restart=always
-    User=pi
-    EnvironmentFile=/home/pi/srv/MyAppCafeControl/.env
+[Unit]
+Description=MyAppCafeControl
+After=network.target systemd-timesyncd
 
-    [Install]
-    WantedBy=multi-user.target
+[Service]
+ExecStart=node /home/pi/srv/MyAppCafeControl/dist/index.js
+WorkingDirectory=/home/pi/srv/MyAppCafeControl/
+StandardOutput=/home/pi/srv/MyAppCafeControl/log.txt
+StandardError=/home/pi/srv/MyAppCafeControl/log.txt
+RestartSec=10
+Restart=on-failure
+StartLimitIntervalSec=60
+StartLimitBurst=10
+User=pi
+
+[Install]
+WantedBy=multi-user.target

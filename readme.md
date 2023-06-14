@@ -22,7 +22,7 @@ Es ist Aufgabe der ändernden Person, Projektbeteiligte über etwaige Änderunge
 
 Einstufung: **Normal**
 
-- [ ] Dieses Projekt ist ausschließlich für Mitarbeiter der IBS GnbH bestimmt
+- [ ] Dieses Projekt ist ausschließlich für Mitarbeiter von K7 bestimmt
 - [ ] Dieses Projekt verarbeitet _und_ speichert Kundendaten
 - [ ] Dieses Projekt verarbeitet _und_ speichert Zahlungsdsaten
 - [ ] Es gibt über das Internet erreichbare Schnittstellen
