@@ -136,6 +136,13 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
 fi
 
 if [[ "$installationPackage" == "camera" ]]; then
+
+    # check if os version codename is buster 
+    if [[ $(lsb_release -cs) != "buster" ]]; then
+        echo "  <Camera> can only be installed on Raspberry Pi OS buster!"
+        exit 0
+    fi
+
     if [[ "$streamname" == "" ]]; then
         echo "  <StreamName> needs to be set, when installing camera!"
         exit 0
@@ -163,6 +170,7 @@ echo '# You can rest now                                        #'
 echo '#                                                         #'
 echo '###########################################################'
 
+sleep 10
 
 echo 'Configuring pi...'
 echo "  - changing password"
@@ -260,6 +268,11 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
 
         echo "Installing VNC"
         sudo apt install realvnc-vnc-server -y
+        
+        echo "Installing nginx"
+        sudo apt install -y nginx
+        sudo rm /etc/nginx/nginx.conf
+        sudo cp /home/pi/srv/MyAppCafeControl/scripts/nginx.server.conf /etc/nginx/nginx.conf
     fi
     echo '-----------------------------------------------------------'
 fi
@@ -351,8 +364,8 @@ if [[ "$installationPackage" == "camera" ]]; then
     git clone --recursive https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
     mkdir -p amazon-kinesis-video-streams-producer-sdk-cpp/build
     cd amazon-kinesis-video-streams-producer-sdk-cpp/build
-    cmake .. -DBUILD_GSTREAMER_PLUGIN=ON -DBUILD_JNI=TRUE
-    sudo apt-get install libssl-dev libcurl4-openssl-dev liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools
+    cmake .. -BUILD_GSTREAMER_PLUGIN=ON -DBUILD_JNI=TRUE
+    sudo apt-get install libssl-dev libcurl4-openssl-dev liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools gstreamer1.0-omx -y
     make
     cd ..
     export GST_PLUGIN_PATH=$(pwd)/build
@@ -367,7 +380,7 @@ if [[ "$installationPackage" == "camera" ]]; then
     # create shell script to launch cam
     echo '#!/bin/bash' | tee /home/pi/launch-cam.sh
     echo 'export GST_PLUGIN_PATH=/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | tee -a /home/pi/launch-cam.sh
-    echo 'gst-launch-1.0 v4l2src do-timestamp=TRUE device=/dev/video0 ! videobalance saturation=0.0 ! clockoverlay time-format="%D %H:%M:%S" halignment=right font-desc="Sans, 16" ! videoconvert ! video/x-raw,18rmat=I420,width=532,height=400,framerate=15/1 ! omxh264enc control-rate=1 target-bitrate=512000 periodicity-idr=45 inline-header=FALSE ! h264parse ! video/x-h264,stream-format=avc,alignment=au,width=532,height=400,framerate=15/1,profile=baseline ! kvssink stream-name="'$streamname'" access-key="'$awsaccess'" secret-key="'$awssecret'" aws-region="'$awsregion'"' | tee -a /home/pi/launch-cam.sh
+    echo 'gst-launch-1.0 v4l2src do-timestamp=TRUE device=/dev/video0 ! videobalance saturation=0.0 ! clockoverlay time-format="%D %H:%M:%S" halignment=right font-desc="Sans, 16" ! videoconvert ! video/x-raw,18rmat=I420,width=532,height=400,framerate=15/1 ! v4l2h264enc control-rate=1 target-bitrate=512000 periodicity-idr=45 inline-header=FALSE ! h264parse ! video/x-h264,stream-format=avc,alignment=au,width=532,height=400,framerate=15/1,profile=baseline ! kvssink stream-name="'$streamname'" access-key="'$awsaccess'" secret-key="'$awssecret'" aws-region="'$awsregion'"' | tee -a /home/pi/launch-cam.sh
     chmod ugo+x /home/pi/launch-cam.sh
 
     # create script file
