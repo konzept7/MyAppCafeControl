@@ -1,28 +1,27 @@
-const REDIS_HOST = 'localhost'
-const REDIS_PORT = 6379
+const REDIS_HOST = "localhost";
+const REDIS_PORT = 6379;
 
-
-import { ControllableProgram } from './controllableProgram'
-import EventEmitter from 'events';
-import axios from 'axios';
-import { mqtt } from 'aws-iot-device-sdk-v2';
-import { awaitableExec, sleep } from './common'
-import { Job, jobUpdate, StatusDetails, JobOption } from './job'
-import { ServerShadow, ServerShadowState, IShadowState } from './shadow'
-import { SessionCredentials } from './sessionCredentials';
-import { Tunnel } from './tunnel'
-import { log, warn, info, error, debug } from './log'
-import { Rm, RobotTest } from './RobotTest';
+import { ControllableProgram } from "./controllableProgram";
+import EventEmitter from "events";
+import axios from "axios";
+import { mqtt } from "aws-iot-device-sdk-v2";
+import { awaitableExec, sleep } from "./common";
+import { Job, jobUpdate, StatusDetails, JobOption } from "./job";
+import { ServerShadow, ServerShadowState, IShadowState } from "./shadow";
+import { SessionCredentials } from "./sessionCredentials";
+import { Tunnel } from "./tunnel";
+import { log, warn, info, error, debug } from "./log";
+import { Rm, RobotTest } from "./RobotTest";
 
 // control docker with dockerode
-import Dockerode from 'dockerode';
-import { existsSync, readFile, writeFile } from 'fs';
-import path from 'path';
+import Dockerode from "dockerode";
+import { existsSync, readFile, writeFile } from "fs";
+import path from "path";
 
 var docker = new Dockerode();
 
-const signalR = require('@microsoft/signalr')
-const Redis = require('ioredis');
+const signalR = require("@microsoft/signalr");
+const Redis = require("ioredis");
 
 export enum ServerState {
   closed = "closed",
@@ -34,7 +33,7 @@ export enum ServerState {
   Paused = "Paused",
   Pausing = "Pausing",
   Restarting = "Restarting",
-  FatalError = "FatalError"
+  FatalError = "FatalError",
 }
 
 export enum ServerEvents {
@@ -43,7 +42,7 @@ export enum ServerEvents {
   change = "change",
   readyForUpdate = "readyForUpdate",
   fatalError = "fatalError",
-  allOrdersFinished = "allOrdersFinished"
+  allOrdersFinished = "allOrdersFinished",
 }
 
 const awsPath = "/home/pi/.local/bin/aws";
@@ -68,7 +67,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     return this._state;
   }
   set state(value) {
-    info('current state will be set', value)
+    info("current state will be set", value);
     if (this._state === value) return;
 
     this._state = value;
@@ -82,7 +81,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     }
 
     if (value === ServerState.FatalError) {
-      this.emit(ServerEvents.fatalError)
+      this.emit(ServerEvents.fatalError);
     }
 
     if (value === ServerState.Okay) {
@@ -92,9 +91,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this.emit(ServerEvents.change, value);
   }
 
-  constructor(url: string, stateHubUrl: string, orderHubUrl: string, path: string, thingName: string, connection: mqtt.MqttClientConnection) {
+  constructor(
+    url: string,
+    stateHubUrl: string,
+    orderHubUrl: string,
+    path: string,
+    thingName: string,
+    connection: mqtt.MqttClientConnection
+  ) {
     super();
-    this.state = ServerState.closed
+    this.state = ServerState.closed;
     this._url = url;
     this._serverPath = path;
     this._stateHubUrl = stateHubUrl;
@@ -104,9 +110,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     const initialState = new ServerShadowState();
     initialState.desired = ServerState.NeverInitialized;
     initialState.reported = ServerState.closed;
-    this.containers = []
-    this.images = []
-    this.shadow = new ServerShadow(connection, initialState)
+    this.containers = [];
+    this.images = [];
+    this.shadow = new ServerShadow(connection, initialState);
     this._stateConnection = new signalR.HubConnectionBuilder()
       .withUrl(this._stateHubUrl)
       .withAutomaticReconnect({
@@ -138,26 +144,33 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
     this._stateConnection.onreconnected((connectionId: string) => {
       log("reconnected with connectionId " + connectionId);
-      if (this._isBlockingOrders) warn('reconnected, but new orders are still blocked');
+      if (this._isBlockingOrders)
+        warn("reconnected, but new orders are still blocked");
     });
 
     this._stateConnection.on("current", (args: ServerState) => {
       // after successful init, we won't be blocking orders
-      if (args === ServerState.NeverInitialized || args === ServerState.Okay && (this.state === ServerState.Starting || this.state === ServerState.Restarting || this.state === ServerState.NeverInitialized)) {
+      if (
+        args === ServerState.NeverInitialized ||
+        (args === ServerState.Okay &&
+          (this.state === ServerState.Starting ||
+            this.state === ServerState.Restarting ||
+            this.state === ServerState.NeverInitialized))
+      ) {
         this._isBlockingOrders = false;
         this.emit(ServerEvents.allOrdersFinished);
       }
-      this.state = args
+      this.state = args;
     });
 
     this._stateConnection.on("orders", (args: string) => {
-      if (args === 'blocked') {
+      if (args === "blocked") {
         this._isBlockingOrders = true;
       }
-      if (args === 'unblocked') {
+      if (args === "unblocked") {
         this._isBlockingOrders = false;
       }
-      if (args === 'allFinished') {
+      if (args === "allFinished") {
         this._currentOrders = new Array<any>();
         this.emit(ServerEvents.allOrdersFinished);
       }
@@ -189,17 +202,31 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     this._orderConnection.on("UpdateOrder", (args: any) => {
       var order = JSON.parse(args);
 
-      var updatedCurrentOrderIndex = this._currentOrders.findIndex(o => o.OrderId === order.OrderId);
-      var updatedQueuedOrderIndex = this._currentOrders.findIndex(o => o.OrderId === order.OrderId);
+      var updatedCurrentOrderIndex = this._currentOrders.findIndex(
+        (o) => o.OrderId === order.OrderId
+      );
+      var updatedQueuedOrderIndex = this._currentOrders.findIndex(
+        (o) => o.OrderId === order.OrderId
+      );
 
       // order is not yet in list
-      if (updatedCurrentOrderIndex === -1 && updatedQueuedOrderIndex === -1 && order.status !== "Completed" && order.status !== "PickedUp") {
-        this._currentOrders.push(order)
+      if (
+        updatedCurrentOrderIndex === -1 &&
+        updatedQueuedOrderIndex === -1 &&
+        order.status !== "Completed" &&
+        order.status !== "PickedUp"
+      ) {
+        this._currentOrders.push(order);
         return;
       }
 
       // order is finished
-      if ((order.status === "PickedUp") || order.status === "Completed" && updatedCurrentOrderIndex !== -1 && order.TargetGate.State === "Available") {
+      if (
+        order.status === "PickedUp" ||
+        (order.status === "Completed" &&
+          updatedCurrentOrderIndex !== -1 &&
+          order.TargetGate.State === "Available")
+      ) {
         this._currentOrders.splice(updatedCurrentOrderIndex, 1);
         if (this._currentOrders.length === 0) {
           this.emit(ServerEvents.allOrdersFinished);
@@ -211,80 +238,113 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._currentOrders.splice(updatedCurrentOrderIndex, 1, order);
       }
     });
-
   }
 
   get isOperatingNormally(): boolean {
-    return this.state === ServerState.Okay || this.state === ServerState.Pausing || this.state === ServerState.Paused || this.state === ServerState.Maintenance;
+    return (
+      this.state === ServerState.Okay ||
+      this.state === ServerState.Pausing ||
+      this.state === ServerState.Paused ||
+      this.state === ServerState.Maintenance
+    );
   }
   get isStarting(): boolean {
-    return this.state === ServerState.Starting || this.state === ServerState.Restarting;
+    return (
+      this.state === ServerState.Starting ||
+      this.state === ServerState.Restarting
+    );
   }
-  get composeFile(): string { return "PLATFORM" in process.env ? ` --file docker-compose.${process.env.PLATFORM}.yml ` : "" }
-  get customMyappcafeImages(): Array<string> {
-    let arr = ["status", "myappcafeserver", "config", "terminal", "display"]
-    arr = arr.map(e => "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? e : e);
-    return arr;
+  get composeFile(): string {
+    return "PLATFORM" in process.env
+      ? ` --file docker-compose.${process.env.PLATFORM}.yml `
+      : "";
   }
-  get myappcafeImages(): Array<string> {
-    return [...this.customMyappcafeImages, "redis"]
+  get composeCommand(): string {
+    return "COMPOSE_COMMAND" in process.env
+      ? process.env.COMPOSE_COMMAND
+      : "docker-compose";
   }
-
 
   async prepare(): Promise<boolean> {
     return new Promise((resolve) => {
-
       // check for local proxy
 
       // list all running containers
-      docker.listContainers((err: any, response: Array<Dockerode.ContainerInfo>) => {
-        if (err) {
-          error('error listing containers', err)
-          return;
+      docker.listContainers(
+        (err: any, response: Array<Dockerode.ContainerInfo>) => {
+          if (err) {
+            error("error listing containers", err);
+            return;
+          }
+          this.containers = response;
+          log("containers running", this.containers);
         }
-        this.containers = response
-        log('containers running', this.containers)
-      });
-
+      );
 
       // find out if images are built for all necessary containers
-      docker.listImages(async (err: any, response: Array<Dockerode.ImageInfo>) => {
-        if (err) {
-          error('error listing images', err)
-          return;
-        }
+      docker.listImages(
+        async (err: any, response: Array<Dockerode.ImageInfo>) => {
+          if (err) {
+            error("error listing images", err);
+            return;
+          }
 
-        log('all images', response)
+          log("all images", response);
 
-        let imageInfoAccumulator = (array: Array<string>, entry: Dockerode.ImageInfo): Array<string> => {
-          return [...array, ...(entry.RepoTags ?? [])];
-        };
+          let imageInfoAccumulator = (
+            array: Array<string>,
+            entry: Dockerode.ImageInfo
+          ): Array<string> => {
+            return [...array, ...(entry.RepoTags ?? [])];
+          };
 
-        const allTags: Array<string> = response.reduce(imageInfoAccumulator, [] as Array<string>)
-        log('all current image tags', allTags)
-        if (this.myappcafeImages.every(name => allTags.some(tag => tag.includes(name)))) {
-          log('images for every needed container found!', this.myappcafeImages)
-        } else {
-          warn('it was not possible to find every container needed for myappcafe');
-        }
+          const allTags: Array<string> = response.reduce(
+            imageInfoAccumulator,
+            [] as Array<string>
+          );
+          log("all current image tags", allTags);
+          if (
+            this.myappcafeImages.every((name) =>
+              allTags.some((tag) => tag.includes(name))
+            )
+          ) {
+            log(
+              "images for every needed container found!",
+              this.myappcafeImages
+            );
+          } else {
+            warn(
+              "it was not possible to find every container needed for myappcafe"
+            );
+          }
 
-        this.images = response.filter(image => (image.RepoTags?.some(tag => tag.endsWith("latest")) ?? false));
-        const allCustomTags: Array<string> = this.images.reduce(imageInfoAccumulator, [] as Array<string>)
-        log('all custom image tags', allCustomTags)
-        if (this.customMyappcafeImages.every(name => allCustomTags.some(tag => tag.includes(name)))) {
-          log('images for every custom container found!')
+          this.images = response.filter(
+            (image) =>
+              image.RepoTags?.some((tag) => tag.endsWith("latest")) ?? false
+          );
+          const allCustomTags: Array<string> = this.images.reduce(
+            imageInfoAccumulator,
+            [] as Array<string>
+          );
+          log("all custom image tags", allCustomTags);
+          if (
+            this.customMyappcafeImages.every((name) =>
+              allCustomTags.some((tag) => tag.includes(name))
+            )
+          ) {
+            log("images for every custom container found!");
+          } else {
+            log("figure out how to handle preparation");
+          }
+          resolve(true);
         }
-        else {
-          log('figure out how to handle preparation')
-        }
-        resolve(true);
-      })
+      );
     });
   }
 
   async getRunningContainers(): Promise<Array<Dockerode.Container>> {
     const containerInfos = await docker.listContainers();
-    const containers: Array<Dockerode.Container> = []
+    const containers: Array<Dockerode.Container> = [];
     for (const info of containerInfos) {
       const container = docker.getContainer(info.Id);
       containers.push(container);
@@ -294,24 +354,34 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   specialTopics: string[] = [];
   disconnect(): Promise<any> {
-    throw new Error('Method not implemented.');
+    throw new Error("Method not implemented.");
   }
   handleMessage(topic: string, message: any): Promise<any> {
-    throw new Error('Method not implemented.');
+    throw new Error("Method not implemented.");
   }
 
   handleShadow(shadow: IShadowState) {
     return new Promise((resolve, reject) => {
-      resolve(true)
-    })
+      resolve(true);
+    });
   }
 
   get isOperating(): boolean {
-    return this.state === ServerState.Okay || this.state === ServerState.Paused || this.state === ServerState.Pausing || this.state === ServerState.Starting || this.state === ServerState.Restarting
+    return (
+      this.state === ServerState.Okay ||
+      this.state === ServerState.Paused ||
+      this.state === ServerState.Pausing ||
+      this.state === ServerState.Starting ||
+      this.state === ServerState.Restarting
+    );
   }
 
   get isNotOperating(): boolean {
-    return this.state === ServerState.closed || this.state === ServerState.NeverInitialized || this.state === ServerState.FatalError;
+    return (
+      this.state === ServerState.closed ||
+      this.state === ServerState.NeverInitialized ||
+      this.state === ServerState.FatalError
+    );
   }
 
   async connect() {
@@ -319,39 +389,44 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       while (!this._stateConnection || this.state === ServerState.closed) {
         this._stateConnection
           .start({
-            withCredentials: false
+            withCredentials: false,
           })
           .then(() => {
             log("connected to signalR");
-            resolve('connected to state hub');
+            resolve("connected to state hub");
             return;
           })
           .catch((err: any) => {
             this.state = ServerState.closed;
-            error('error starting connection to server', err);
+            error("error starting connection to server", err);
           });
         // wait for 15 seconds before trying to connect again
-        await sleep(15 * 1000)
+        await sleep(15 * 1000);
       }
-    })
+    });
   }
   async startContainers(images: Array<string>) {
-    log('starting containers as requested', images)
-    return awaitableExec('docker-compose' + this.composeFile + ' up -d ' + images.join(' '), {
-      cwd: this._serverPath
-    })
+    log("starting containers as requested", images);
+    return awaitableExec(
+      this.composeCommand + this.composeFile + " up -d " + images.join(" "),
+      {
+        cwd: this._serverPath,
+      }
+    );
   }
 
   async start() {
-    log('starting containers')
+    log("starting containers");
     await this.startContainers(this._containers);
 
-    let response = await axios.get(this._url + 'connected', { timeout: 10 * 1000 })
+    let response = await axios.get(this._url + "connected", {
+      timeout: 10 * 1000,
+    });
     if (response.status === 200) return true;
 
     // restart the container in case it has been terminated on startup
-    await this.startContainers(['myappcafeserver'])
-    response = await axios.get(this._url + 'connected', { timeout: 1 * 1000 })
+    await this.startContainers(["myappcafeserver"]);
+    response = await axios.get(this._url + "connected", { timeout: 1 * 1000 });
     if (response.status === 200) return true;
     return false;
   }
@@ -363,7 +438,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     //   const container = docker.getContainer(info.Id);
     //   await container.stop();
     // }
-    await awaitableExec('docker-compose ' + this.composeFile + ' stop', {})
+    await awaitableExec(
+      this.composeCommand + " " + this.composeFile + " stop",
+      {}
+    );
     return true;
   }
 
@@ -372,324 +450,500 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   sleep(ms: number) {
-    return new Promise(res => setTimeout(res, ms))
+    return new Promise((res) => setTimeout(res, ms));
   }
 
   waitOnce(event: string, timeout: number) {
     return new Promise((resolve, reject) => {
       setTimeout(reject, timeout);
-      this.once(event, () => resolve)
-    })
+      this.once(event, () => resolve);
+    });
   }
-
 
   async initBoxNow(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
-      log('got request to start box, current state: ' + this.state)
+      log("got request to start box, current state: " + this.state);
       if (this.state === ServerState.FatalError) {
-        log('server is in fatal error, shutting down')
+        log("server is in fatal error, shutting down");
         await this.shutdownGracefully(10);
         await sleep(10 * 1000);
       }
       try {
         if (this.state === ServerState.closed) {
-          log('server is currently shut down, starting containers');
+          log("server is currently shut down, starting containers");
           await this.start();
-          log('started server, now waiting 30 seconds');
+          log("started server, now waiting 30 seconds");
           await sleep(30 * 1000);
         }
-        log('waited for server to be up, now sending init commands');
-        await axios.post(this._url + 'init/sanitize');
-        log('sanitized the shutdown, just in case');
-        log('waiting 5 seconds until init command');
+        log("waited for server to be up, now sending init commands");
+        await axios.post(this._url + "init/sanitize");
+        log("sanitized the shutdown, just in case");
+        log("waiting 5 seconds until init command");
         this.once(ServerEvents.okay, () => {
-          log('server seems to be okay after init');
-          resolve(true)
+          log("server seems to be okay after init");
+          resolve(true);
         });
         this.once(ServerEvents.fatalError, () => {
-          warn('server is error after sending init command')
-          reject('server is in fatal error state')
-        })
+          warn("server is error after sending init command");
+          reject("server is in fatal error state");
+        });
         await this.sleep(5000);
-        log('5 seconds over, now sending init command')
-        await axios.post(this._url + 'init/initnow');
-        log('init commands sent, waiting for server to be in state okay')
+        log("5 seconds over, now sending init command");
+        await axios.post(this._url + "init/initnow");
+        log("init commands sent, waiting for server to be in state okay");
       } catch (err) {
-        error('error starting box', err)
-        reject(err)
+        error("error starting box", err);
+        reject(err);
       }
-    })
-
+    });
   }
 
-  private stepOperations: Array<string> = ["reboot"]
+  private stepOperations: Array<string> = ["reboot"];
   async handleJob(job: Job) {
-    log('trying to handle a job', job)
+    log("trying to handle a job", job);
     try {
       if (!("operation" in job.jobDocument)) {
         throw new Error("job has no operation name, we don't know what to do");
       }
       const operation = job.jobDocument.operation;
 
-      if (job.status === 'IN_PROGRESS' && !(this.stepOperations.includes(operation))) {
-        error('received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now', job)
-        const fail = job.Fail('alreadyInProgress', "AXXX");
+      if (
+        job.status === "IN_PROGRESS" &&
+        !this.stepOperations.includes(operation)
+      ) {
+        error(
+          "received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now",
+          job
+        );
+        const fail = job.Fail("alreadyInProgress", "AXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return Promise.reject();
       }
 
-      if ("shadowCondition" in job.jobDocument && "state" in job.jobDocument.shadowCondition) {
-        const allowedConditions = job.jobDocument.shadowCondition.state.split('|').map((c: string) => c.trim() as ServerState)
-        debug('allowed conditions for current job are: ' + allowedConditions.join(', '))
-        if (!(allowedConditions.includes((c: ServerState) => this._state))) {
-          error('job will fail because it has a state condition that is not met by the current server state: ' + this._state)
+      if (
+        "shadowCondition" in job.jobDocument &&
+        "state" in job.jobDocument.shadowCondition
+      ) {
+        const allowedConditions = job.jobDocument.shadowCondition.state
+          .split("|")
+          .map((c: string) => c.trim() as ServerState);
+        debug(
+          "allowed conditions for current job are: " +
+            allowedConditions.join(", ")
+        );
+        if (!allowedConditions.includes((c: ServerState) => this._state)) {
+          error(
+            "job will fail because it has a state condition that is not met by the current server state: " +
+              this._state
+          );
           const fail = job.Fail("wrongState", "AXXX");
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           return Promise.reject();
         }
       }
 
-      if (operation === 'update') {
+      if (operation === "update") {
         return await this.updateHandler(job);
       }
-      if (operation === 'http') {
+      if (operation === "http") {
         return await this.httpHandler(job);
       }
-      if (operation === 'shell') {
+      if (operation === "shell") {
         return await this.shellCommandHandler(job);
       }
-      if (operation === 'start') {
+      if (operation === "start") {
         return await this.startHandler(job);
       }
-      if (operation === 'init') {
+      if (operation === "init") {
         return await this.initHandler(job);
       }
-      if (operation === 'shutdown') {
-        return await this.shutdownHandler(job)
+      if (operation === "shutdown") {
+        return await this.shutdownHandler(job);
       }
-      if (operation === 'remove-orders') {
+      if (operation === "remove-orders") {
         return await this.removeOrdersHandler(job);
       }
 
-      if (operation === 'pause') {
-        return await this.pauseHandler(job)
+      if (operation === "pause") {
+        return await this.pauseHandler(job);
       }
-      if (operation === 'unpause') {
+      if (operation === "unpause") {
         job.jobDocument.option = JobOption.unpause;
-        return await this.pauseHandler(job)
+        return await this.pauseHandler(job);
       }
 
-      if (operation === 'test-beverage') {
-        return await this.testBeverageHandler(job)
+      if (operation === "test-beverage") {
+        return await this.testBeverageHandler(job);
       }
 
-      if (operation === 'download-env') {
-        return await this.downloadEnvHandler(job)
+      if (operation === "download-env") {
+        return await this.downloadEnvHandler(job);
       }
 
-      if (operation === 'robot-test') {
-        return await this.robotTestHandler(job)
+      if (operation === "robot-test") {
+        return await this.robotTestHandler(job);
       }
-      if (operation === 'robot-command') {
-        return await this.robotCommandHandler(job)
+      if (operation === "robot-command") {
+        return await this.robotCommandHandler(job);
       }
-      if (operation === 'recover-robot') {
-        return await this.recoverRobotHandler(job)
-      }
-
-      if (operation === 'upload-env') {
-        return await this.uploadEnvHandler(job)
-      }
-      if (operation === 'reload-config') {
-        return await this.reloadConfigHandler(job)
+      if (operation === "recover-robot") {
+        return await this.recoverRobotHandler(job);
       }
 
-      if (operation === 'check-device') {
-        return await this.checkDeviceHandler(job)
+      if (operation === "upload-env") {
+        return await this.uploadEnvHandler(job);
       }
-      if (operation === 'deactivate-device') {
-        return await this.deactivateDeviceHandler(job)
-      }
-      if (operation === 'restart-device') {
-        return await this.restartDeviceHandler(job)
+      if (operation === "reload-config") {
+        return await this.reloadConfigHandler(job);
       }
 
-      if (operation === 'trash') {
-        return await this.trashMoveHandler(job)
+      if (operation === "check-device") {
+        return await this.checkDeviceHandler(job);
+      }
+      if (operation === "deactivate-device") {
+        return await this.deactivateDeviceHandler(job);
+      }
+      if (operation === "restart-device") {
+        return await this.restartDeviceHandler(job);
       }
 
-      if (operation === 'set-start') {
+      if (operation === "trash") {
+        return await this.trashMoveHandler(job);
+      }
+
+      if (operation === "set-start") {
         return await this.setStartupHandler(job);
       }
-      if (operation === 'remove-start') {
+      if (operation === "remove-start") {
         return await this.removeStartupHandler(job);
       }
 
-      if (operation === 'message') {
-        return await this.messageHandler(job)
+      if (operation === "message") {
+        return await this.messageHandler(job);
       }
 
-      if (operation === 'set-server-state') {
-        return await this.serverStateHandler(job)
+      if (operation === "set-server-state") {
+        return await this.serverStateHandler(job);
       }
 
-      if (operation === 'block-orders') {
-        return await this.blockHandler(job, true)
+      if (operation === "block-orders") {
+        return await this.blockHandler(job, true);
       }
 
-      if (operation === 'unblock-orders') {
-        return await this.blockHandler(job, false)
+      if (operation === "unblock-orders") {
+        return await this.blockHandler(job, false);
       }
 
-      if (operation == 'reboot') {
+      if (operation == "reboot") {
         return await this.rebootHandler(job);
       }
 
-      if (operation == 'disable-notifications') {
+      if (operation == "disable-notifications") {
         return await this.disableNotificationsHandler(job);
       }
 
-      if (operation == 'reset-redis') {
+      if (operation == "reset-redis") {
         return await this.resetRedisHandler(job);
       }
 
-      if (operation === 'upload-logs') {
+      if (operation === "upload-logs") {
         return await this.uploadLogsHandler(job);
       }
 
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknownOperation", "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
-
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
         const fail = job.Fail("unknown", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
   async uploadLogsHandler(job: Job) {
-    console.log('upload logs requested');
+    console.log("upload logs requested");
 
-    let credentials: SessionCredentials | undefined
+    let credentials: SessionCredentials | undefined;
     try {
-      jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection);
-      credentials = await SessionCredentials.createCredentials(this._serverPath, this._thingName, "iot-config-role");
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.01, "registered"),
+        this._thingName,
+        this._connection
+      );
+      credentials = await SessionCredentials.createCredentials(
+        this._serverPath,
+        this._thingName,
+        "iot-config-role"
+      );
       if (!credentials) {
-        error('could not get credentials for upload logs')
-        jobUpdate(job.jobId, job.Fail("noCredentials", "AXXX"), this._thingName, this._connection);
+        error("could not get credentials for upload logs");
+        jobUpdate(
+          job.jobId,
+          job.Fail("noCredentials", "AXXX"),
+          this._thingName,
+          this._connection
+        );
         throw new Error("could not get credentials for upload logs");
-      };
-      jobUpdate(job.jobId, job.Progress(0.1, "credentials"), this._thingName, this._connection);
+      }
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.1, "credentials"),
+        this._thingName,
+        this._connection
+      );
       const fileName = `mac-control-journal-${new Date().toISOString()}.txt`;
       const path = `/home/pi/${fileName}`;
-      const s3Uri = `s3://temp.myapp.cafe/control-logs/${this._thingName}/${fileName}`
+      const s3Uri = `s3://temp.myapp.cafe/control-logs/${this._thingName}/${fileName}`;
       const journalCmd = `journalctl -u myappcafecontrol.service -o short > ${path}`;
-      await awaitableExec(journalCmd, { timeout: 10000 }, () => { }, () => { });
-      jobUpdate(job.jobId, job.Progress(0.6, "filesWritten"), this._thingName, this._connection);
+      await awaitableExec(
+        journalCmd,
+        { timeout: 10000 },
+        () => {},
+        () => {}
+      );
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.6, "filesWritten"),
+        this._thingName,
+        this._connection
+      );
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
       const uploadCmd = `${awsPath} s3 cp ${path} ${s3Uri}`;
-      await awaitableExec([envCommand, uploadCmd].join(';'), { timeout: 10000 });
-      jobUpdate(job.jobId, job.Progress(0.8, "filesUploaded"), this._thingName, this._connection);
+      await awaitableExec([envCommand, uploadCmd].join(";"), {
+        timeout: 10000,
+      });
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.8, "filesUploaded"),
+        this._thingName,
+        this._connection
+      );
 
       const presignCommand = `${awsPath} s3 presign ${s3Uri}`;
       let presignUrl;
-      await awaitableExec([envCommand, presignCommand].join(';'), { timeout: 10000 }, (stdOut) => { presignUrl = stdOut }, () => { });
-      await awaitableExec(`rm ${path}`, { timeout: 10000 }, () => { }, () => { });
-      log('presign url from exec:' + presignUrl);
-      jobUpdate(job.jobId, job.Succeed('CUSTOM#' + presignUrl), this._thingName, this._connection);
+      await awaitableExec(
+        [envCommand, presignCommand].join(";"),
+        { timeout: 10000 },
+        (stdOut) => {
+          presignUrl = stdOut;
+        },
+        () => {}
+      );
+      await awaitableExec(
+        `rm ${path}`,
+        { timeout: 10000 },
+        () => {},
+        () => {}
+      );
+      log("presign url from exec:" + presignUrl);
+      jobUpdate(
+        job.jobId,
+        job.Succeed("CUSTOM#" + presignUrl),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('upload logs failed', { err })
-      jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
+      error("upload logs failed", { err });
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     }
   }
 
   async checkDeviceHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        throw new Error('no device defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("device" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no device defined");
       }
-      jobUpdate(job.jobId, job.Progress(.3, "started"), this._thingName, this._connection)
-      const response = await axios.post(this._url + 'devices/test/' + job.jobDocument.parameters["device"], null, { timeout: 120 * 1000 });
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "started"),
+        this._thingName,
+        this._connection
+      );
+      const response = await axios.post(
+        this._url + "devices/test/" + job.jobDocument.parameters["device"],
+        null,
+        { timeout: 120 * 1000 }
+      );
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed("deviceTestedSuccessfully"), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("deviceTestedSuccessfully"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      jobUpdate(job.jobId, job.Fail('deviceTestFailed', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("deviceTestFailed", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('noTestPossible', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("noTestPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
   async deactivateDeviceHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        throw new Error('no device defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("device" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no device defined");
       }
-      let deactivationType = job.jobDocument.option || '';
-      if (deactivationType === '') {
-        jobUpdate(job.jobId, job.Fail('optionNotSet', "AXXXX"), this._thingName, this._connection)
-        return
+      let deactivationType = job.jobDocument.option || "";
+      if (deactivationType === "") {
+        jobUpdate(
+          job.jobId,
+          job.Fail("optionNotSet", "AXXXX"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      if (deactivationType === 'deviceshutdown' || deactivationType === 'devicedisabled')
-        deactivationType = JobOption[deactivationType]
-      jobUpdate(job.jobId, job.Progress(.3, "sentRequest"), this._thingName, this._connection)
-      const response = await axios.post(this._url + 'devices/setstate/' + job.jobDocument.parameters["device"] + '/' + deactivationType, null, { timeout: 30 * 1000 });
+      if (
+        deactivationType === "deviceshutdown" ||
+        deactivationType === "devicedisabled"
+      )
+        deactivationType = JobOption[deactivationType];
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "sentRequest"),
+        this._thingName,
+        this._connection
+      );
+      const response = await axios.post(
+        this._url +
+          "devices/setstate/" +
+          job.jobDocument.parameters["device"] +
+          "/" +
+          deactivationType,
+        null,
+        { timeout: 30 * 1000 }
+      );
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed((deactivationType === 'Disabled' ? ' deactivedPermanently' : 'deactivedTemporarily')), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed(
+            deactivationType === "Disabled"
+              ? " deactivedPermanently"
+              : "deactivedTemporarily"
+          ),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      jobUpdate(job.jobId, job.Fail('notPossible', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("notPossible", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      console.log('deactivation failed: ', err)
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('notPossible', "AXXXX");
+      error("job failed", { job, err });
+      console.log("deactivation failed: ", err);
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("notPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
   async trashMoveHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        throw new Error('no device defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("device" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no device defined");
       }
-      jobUpdate(job.jobId, job.Progress(.3, "started"), this._thingName, this._connection)
-      const response = await axios.post(this._url + 'robot/trash/' + job.jobDocument.parameters["device"], null, { timeout: 30 * 1000 });
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "started"),
+        this._thingName,
+        this._connection
+      );
+      const response = await axios.post(
+        this._url + "robot/trash/" + job.jobDocument.parameters["device"],
+        null,
+        { timeout: 30 * 1000 }
+      );
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed('finished'), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("finished"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      jobUpdate(job.jobId, job.Fail('notPossible', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("notPossible", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('notPossible', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("notPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
   async restartDeviceHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("device" in job.jobDocument.parameters)) {
-        throw new Error('no device defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("device" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no device defined");
       }
-      jobUpdate(job.jobId, job.Progress(.3, "started"), this._thingName, this._connection)
-      const response = await axios.post(this._url + 'devices/restart/' + job.jobDocument.parameters["device"], null, { timeout: 15 * 60 * 1000 });
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "started"),
+        this._thingName,
+        this._connection
+      );
+      const response = await axios.post(
+        this._url + "devices/restart/" + job.jobDocument.parameters["device"],
+        null,
+        { timeout: 15 * 60 * 1000 }
+      );
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed('restarted'), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("restarted"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      jobUpdate(job.jobId, job.Fail('notPossible', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("notPossible", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('notPossible', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("notPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -697,20 +951,42 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async robotCommandHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("command" in job.jobDocument.parameters)) {
-        throw new Error('no command defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("command" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no command defined");
       }
-      jobUpdate(job.jobId, job.Progress(.3, "sentCommand"), this._thingName, this._connection)
-      const response = await axios.post(this._url + 'robot/command/' + job.jobDocument.parameters["command"], null, { timeout: 30 * 1000 });
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "sentCommand"),
+        this._thingName,
+        this._connection
+      );
+      const response = await axios.post(
+        this._url + "robot/command/" + job.jobDocument.parameters["command"],
+        null,
+        { timeout: 30 * 1000 }
+      );
       if (response.status === 200) {
-        jobUpdate(job.jobId, job.Succeed('commandFailed'), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("commandFailed"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      jobUpdate(job.jobId, job.Fail('notPossible', "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("notPossible", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('notPossible', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("notPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -718,129 +994,245 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async recoverRobotHandler(job: Job) {
     try {
-      jobUpdate(job.jobId, job.Progress(.3, 'connecting'), this._thingName, this._connection)
-      jobUpdate(job.jobId, job.Progress(.6, 'removingKeys'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.3, "connecting"),
+        this._thingName,
+        this._connection
+      );
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.6, "removingKeys"),
+        this._thingName,
+        this._connection
+      );
       const client = new Redis(REDIS_PORT, REDIS_HOST);
-      await client.del('isMoving')
-      await client.del('unrecoverable')
-      jobUpdate(job.jobId, job.Progress(.9, 'keysRemoved'), this._thingName, this._connection)
-      await client.disconnect()
-      jobUpdate(job.jobId, job.Succeed('success'), this._thingName, this._connection)
+      await client.del("isMoving");
+      await client.del("unrecoverable");
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.9, "keysRemoved"),
+        this._thingName,
+        this._connection
+      );
+      await client.disconnect();
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      console.log('recover robot failed: ', err)
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('failed', "AXXXX");
+      error("job failed", { job, err });
+      console.log("recover robot failed: ", err);
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
-
   async robotTestHandler(job: Job) {
-    info('received robot test job', job)
+    info("received robot test job", job);
 
-    if (this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) {
-      jobUpdate(job.jobId, job.Fail(`server is in state ${this._state}! we will not execute a robot test during operation`, "AXXXX"), this._thingName, this._connection)
+    if (
+      this._state !== ServerState.closed &&
+      this._state !== ServerState.NeverInitialized
+    ) {
+      jobUpdate(
+        job.jobId,
+        job.Fail(
+          `server is in state ${this._state}! we will not execute a robot test during operation`,
+          "AXXXX"
+        ),
+        this._thingName,
+        this._connection
+      );
       return;
     }
 
-    jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection);
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.01, "registered"),
+      this._thingName,
+      this._connection
+    );
 
     if (this._state === ServerState.NeverInitialized) {
       await this.shutdownGracefully(3);
-      await this.stop()
+      await this.stop();
     }
 
-    jobUpdate(job.jobId, job.Progress(0.02, "stopped containers"), this._thingName, this._connection);
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.02, "stopped containers"),
+      this._thingName,
+      this._connection
+    );
 
-    let include: string[] | undefined = job.jobDocument.includeForTest ? job.jobDocument.includeForTest.split(',') : undefined;
-    info('parsed sequences to include', include)
+    let include: string[] | undefined = job.jobDocument.includeForTest
+      ? job.jobDocument.includeForTest.split(",")
+      : undefined;
+    info("parsed sequences to include", include);
     const test = new RobotTest();
     try {
-      if (!await test.prepare(include)) throw new Error("could not connect to robot")
+      if (!(await test.prepare(include)))
+        throw new Error("could not connect to robot");
     } catch {
-      error('unable to prepare robot job - maybe robot could not connect?')
-      jobUpdate(job.jobId, job.Fail('unable to prepare robot test', "AXXXX"), this._thingName, this._connection)
+      error("unable to prepare robot job - maybe robot could not connect?");
+      jobUpdate(
+        job.jobId,
+        job.Fail("unable to prepare robot test", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
       return;
     }
-    let numberOfMoves = test.AllSequences!.map(s => s.sequences).flat(2).length
-    jobUpdate(job.jobId, job.Progress(0.03, "stopped containers"), this._thingName, this._connection);
-    let currentProgress = 0.03
+    let numberOfMoves = test
+      .AllSequences!.map((s) => s.sequences)
+      .flat(2).length;
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.03, "stopped containers"),
+      this._thingName,
+      this._connection
+    );
+    let currentProgress = 0.03;
     const tick = (move: Rm) => {
       if (move.Retries > 0) numberOfMoves++;
-      currentProgress = 0.03 + 0.97 * test.Results.length / numberOfMoves;
-      move.print()
-      jobUpdate(job.jobId, job.Progress(currentProgress, move.toString()), this._thingName, this._connection)
-    }
+      currentProgress = 0.03 + (0.97 * test.Results.length) / numberOfMoves;
+      move.print();
+      jobUpdate(
+        job.jobId,
+        job.Progress(currentProgress, move.toString()),
+        this._thingName,
+        this._connection
+      );
+    };
 
-    test.on('move', (d) => tick(d))
-    test.on('sequence', (s) => {
-      info('*** SEQUENZ ABGESCHLOSSEN')
-      info('*** ' + s.name)
-      const allMoves = s.sequences.flat()
+    test.on("move", (d) => tick(d));
+    test.on("sequence", (s) => {
+      info("*** SEQUENZ ABGESCHLOSSEN");
+      info("*** " + s.name);
+      const allMoves = s.sequences.flat();
 
-      const totalMoves = allMoves.filter((rm: Rm) => rm.IsCounted).length + allMoves.filter((rm: Rm) => rm.IsCounted).reduce((rm: Rm, cv: number) => cv + rm.Retries, 0)
-      const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess && rm.IsCounted).length
-      const timedOut = allMoves.filter((rm: Rm) => !rm.Response && rm.IsCounted).length
-      const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0 && rm.IsCounted).length
+      const totalMoves =
+        allMoves.filter((rm: Rm) => rm.IsCounted).length +
+        allMoves
+          .filter((rm: Rm) => rm.IsCounted)
+          .reduce((rm: Rm, cv: number) => cv + rm.Retries, 0);
+      const failed = allMoves.filter(
+        (rm: Rm) => !rm.IsSuccess && rm.IsCounted
+      ).length;
+      const timedOut = allMoves.filter(
+        (rm: Rm) => !rm.Response && rm.IsCounted
+      ).length;
+      const success = allMoves.filter(
+        (rm: Rm) => rm.IsSuccess && rm.Retries === 0 && rm.IsCounted
+      ).length;
 
-      info('*** GESAMTZAHL:    ' + totalMoves)
-      info('*** ERFOLGREICH:   ' + success)
-      info('*** FEHLGESCHLAGEN ' + failed)
-      info('*** TIMEOUT:       ' + timedOut)
+      info("*** GESAMTZAHL:    " + totalMoves);
+      info("*** ERFOLGREICH:   " + success);
+      info("*** FEHLGESCHLAGEN " + failed);
+      info("*** TIMEOUT:       " + timedOut);
 
-      jobUpdate(job.jobId, job.Progress(currentProgress, `*** SEQUENZ ABGESCHLOSSEN\ntotal: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}\nUm freizuräumen Notstopp innerhalb der nächsten 90 Sekunden drücken`), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(
+          currentProgress,
+          `*** SEQUENZ ABGESCHLOSSEN\ntotal: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}\nUm freizuräumen Notstopp innerhalb der nächsten 90 Sekunden drücken`
+        ),
+        this._thingName,
+        this._connection
+      );
 
-      console.log()
-    })
+      console.log();
+    });
 
-    await test.execute()
-
+    await test.execute();
 
     if (test.IsCancelled) {
-      jobUpdate(job.jobId, job.Fail("job was cancelled", "AXXXX"), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Fail("job was cancelled", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
 
       return;
     }
 
-    info('*** TEST ABGESCHLOSSEN')
-    info('*** ')
+    info("*** TEST ABGESCHLOSSEN");
+    info("*** ");
     const allMoves = test.Results;
 
-    const totalMoves = allMoves.length + allMoves.reduce((pv, rm) => pv + rm.Retries, 0)
-    const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length
-    const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length
-    const success = allMoves.filter((rm: Rm) => rm.IsSuccess && rm.Retries === 0).length
+    const totalMoves =
+      allMoves.length + allMoves.reduce((pv, rm) => pv + rm.Retries, 0);
+    const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length;
+    const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length;
+    const success = allMoves.filter(
+      (rm: Rm) => rm.IsSuccess && rm.Retries === 0
+    ).length;
 
-    info('*** GESAMTZAHL:    ' + totalMoves)
-    info('*** ERFOLGREICH:   ' + success)
-    info('*** FEHLGESCHLAGEN ' + failed)
-    info('*** TIMEOUT:       ' + timedOut)
-    console.log()
-    jobUpdate(job.jobId, job.Progress(currentProgress, `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
-    jobUpdate(job.jobId, job.Succeed(`total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`), this._thingName, this._connection)
-
+    info("*** GESAMTZAHL:    " + totalMoves);
+    info("*** ERFOLGREICH:   " + success);
+    info("*** FEHLGESCHLAGEN " + failed);
+    info("*** TIMEOUT:       " + timedOut);
+    console.log();
+    jobUpdate(
+      job.jobId,
+      job.Progress(
+        currentProgress,
+        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`
+      ),
+      this._thingName,
+      this._connection
+    );
+    jobUpdate(
+      job.jobId,
+      job.Succeed(
+        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`
+      ),
+      this._thingName,
+      this._connection
+    );
   }
 
   async serverStateHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("newstate" in job.jobDocument.parameters)) {
-        throw new Error('no new state given')
+      if (
+        !job.jobDocument.parameters ||
+        !("newstate" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no new state given");
       }
 
       try {
-        jobUpdate(job.jobId, job.Progress(0.3, "sentRequest"), this._thingName, this._connection)
-        await axios.put(this._url + "setState/" + job.jobDocument.parameters["newstate"], undefined, { timeout: 10 * 1000 });
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.3, "sentRequest"),
+          this._thingName,
+          this._connection
+        );
+        await axios.put(
+          this._url + "setState/" + job.jobDocument.parameters["newstate"],
+          undefined,
+          { timeout: 10 * 1000 }
+        );
       } catch (err) {
-        error('could not set server-state', err);
+        error("could not set server-state", err);
       }
 
-      jobUpdate(job.jobId, job.Succeed('stateChanged'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Succeed("stateChanged"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('notPossible', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("notPossible", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -848,49 +1240,73 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async messageHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("message" in job.jobDocument.parameters)) {
-        throw new Error('no message given')
+      if (
+        !job.jobDocument.parameters ||
+        !("message" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no message given");
       }
       try {
-        await axios.post(this._url + "notifications/message/" + job.jobDocument.parameters["message"], undefined, { timeout: 10 * 1000 });
+        await axios.post(
+          this._url +
+            "notifications/message/" +
+            job.jobDocument.parameters["message"],
+          undefined,
+          { timeout: 10 * 1000 }
+        );
       } catch (err) {
-        error('could not send message', err);
+        error("could not send message", err);
       }
 
-      jobUpdate(job.jobId, job.Succeed('sentMessage'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Succeed("sentMessage"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('messageFailed', "AXXXX");
+      error("job failed", { job, err });
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("messageFailed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
   async reloadConfigHandler(job: Job) {
-    debug('reload config job received', job)
-    jobUpdate(job.jobId, job.Progress(0.25, "registered"), this._thingName, this._connection);
+    debug("reload config job received", job);
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.25, "registered"),
+      this._thingName,
+      this._connection
+    );
 
     const previousState = this._state;
 
-    const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`
-    log('triggering config reload', reloadUrl);
+    const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`;
+    log("triggering config reload", reloadUrl);
     try {
-      await axios.post(reloadUrl)
+      await axios.post(reloadUrl);
     } catch (error) {
-      warn('error reloading config', error)
-      const fail = job.Fail('notPossible', "AXXXX");
+      warn("error reloading config", error);
+      const fail = job.Fail("notPossible", "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
-    const option = job.jobDocument.option || "soft"
+    const option = job.jobDocument.option || "soft";
     if (option === "soft") {
       if (previousState === ServerState.NeverInitialized) {
         await this.shutdownGracefully(10);
         await sleep(20 * 1000);
         await this.start();
       }
-      jobUpdate(job.jobId, job.Succeed("reloaded config, will take effect after next startup"), this._thingName, this._connection);
+      jobUpdate(
+        job.jobId,
+        job.Succeed("reloaded config, will take effect after next startup"),
+        this._thingName,
+        this._connection
+      );
       return;
     }
     let progress = job.Progress(0.3, "waitOrdersFinished");
@@ -916,97 +1332,114 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
     }
 
-    jobUpdate(job.jobId, job.Succeed("reloaded config and restarted application"), this._thingName, this._connection);
+    jobUpdate(
+      job.jobId,
+      job.Succeed("reloaded config and restarted application"),
+      this._thingName,
+      this._connection
+    );
   }
 
   private getEnvPath() {
-    let envPath = path.join(this._serverPath, '.env');
-    const localEnvPath = envPath + ".local"
-    return (existsSync(localEnvPath)) ? localEnvPath : envPath;
+    let envPath = path.join(this._serverPath, ".env");
+    const localEnvPath = envPath + ".local";
+    return existsSync(localEnvPath) ? localEnvPath : envPath;
   }
 
   downloadEnvHandler(job: Job) {
-    warn('downloading new .env file, this might hurt very much', job)
+    warn("downloading new .env file, this might hurt very much", job);
 
-    if (!(job.jobDocument.parameters?.env)) {
-      error('there was no env data in job provided', job);
-      const fail = job.Fail('error reading .env data, job should have a parameters.env property', 'AXXXX');
+    if (!job.jobDocument.parameters?.env) {
+      error("there was no env data in job provided", job);
+      const fail = job.Fail(
+        "error reading .env data, job should have a parameters.env property",
+        "AXXXX"
+      );
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
-    const envData = job.jobDocument.parameters['env'];
-    log('writing new .env data to filesystem', envData);
+    const envData = job.jobDocument.parameters["env"];
+    log("writing new .env data to filesystem", envData);
     try {
       const envPath = this.getEnvPath();
       writeFile(envPath, envData, (err) => {
         if (err) {
-          error('error writing local .env file to path ' + envPath, err);
-          const fail = job.Fail('error writing .env file', 'AXXXX');
+          error("error writing local .env file to path " + envPath, err);
+          const fail = job.Fail("error writing .env file", "AXXXX");
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
           return;
         }
-        log('successfully written .env file')
-        jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
-      })
+        log("successfully written .env file");
+        jobUpdate(
+          job.jobId,
+          job.Succeed("success"),
+          this._thingName,
+          this._connection
+        );
+      });
     } catch (err) {
-      error('error downloading .env file', err)
+      error("error downloading .env file", err);
     }
-    throw new Error('Method not implemented.');
+    throw new Error("Method not implemented.");
   }
   async uploadEnvHandler(job: Job) {
     const envPath = this.getEnvPath();
-    readFile(envPath, 'utf-8',
-      (err, data) => {
-        if (err) {
-          error('error reading local .env file from path ' + envPath, err);
-          const fail = job.Fail('error reading .env file', 'AXXXX');
-          jobUpdate(job.jobId, fail, this._thingName, this._connection);
-          return;
-        }
-        log('successfully read .env file', data)
-        jobUpdate(job.jobId, job.Succeed(JSON.stringify({ data })), this._thingName, this._connection);
+    readFile(envPath, "utf-8", (err, data) => {
+      if (err) {
+        error("error reading local .env file from path " + envPath, err);
+        const fail = job.Fail("error reading .env file", "AXXXX");
+        jobUpdate(job.jobId, fail, this._thingName, this._connection);
+        return;
       }
-    )
+      log("successfully read .env file", data);
+      jobUpdate(
+        job.jobId,
+        job.Succeed(JSON.stringify({ data })),
+        this._thingName,
+        this._connection
+      );
+    });
   }
-
 
   private async waitForOrdersToFinish(timeoutInMinutes: number | undefined) {
     if (this.isNotOperating || this._currentOrders.length === 0) return true;
     await this.toggleBlockOrders(true);
     try {
-      const timeout = (timeoutInMinutes ?? 10) * 1000 * 60
-      log('waiting for orders to be finished')
-      await this.waitOnce('allOrdersFinished', timeout)
-      log('all orders should be finished')
+      const timeout = (timeoutInMinutes ?? 10) * 1000 * 60;
+      log("waiting for orders to be finished");
+      await this.waitOnce("allOrdersFinished", timeout);
+      log("all orders should be finished");
       return true;
     } catch (err) {
-      error('timed out while waiting for orders to be finished', err);
+      error("timed out while waiting for orders to be finished", err);
       return false;
     }
   }
 
   async shutdownGracefully(inSeconds: number) {
     if (!inSeconds) inSeconds = 10;
-    log('stopping server if not already closed', this.state)
+    log("stopping server if not already closed", this.state);
     return new Promise(async (resolve, reject) => {
-      if (this.state !== 'closed') {
+      if (this.state !== "closed") {
         try {
-          await axios.post(this._url + "init/shutdown/" + Math.floor(inSeconds), undefined, { timeout: 10 * 1000 });
+          await axios.post(
+            this._url + "init/shutdown/" + Math.floor(inSeconds),
+            undefined,
+            { timeout: 10 * 1000 }
+          );
         } catch (err) {
-          error('error shutting down application', err);
+          error("error shutting down application", err);
           reject(err);
         }
-        log('scheduled server shutdown in ' + inSeconds + " seconds")
-        this.on(ServerEvents.change, newValue => {
-          if (newValue === 'closed')
-            resolve('server is shut down');
-        })
+        log("scheduled server shutdown in " + inSeconds + " seconds");
+        this.on(ServerEvents.change, (newValue) => {
+          if (newValue === "closed") resolve("server is shut down");
+        });
+      } else {
+        log("server was already shut down");
+        resolve("server is shut down");
       }
-      else {
-        log('server was already shut down');
-        resolve('server is shut down');
-      }
-    })
+    });
   }
 
   // ********************************************
@@ -1024,20 +1457,36 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   // all frontend applications reload when myappcafeserver is restarted,
   // that way we ensure that the browser reloads (and gets the updated version of our frontends)
 
-  private _containers = ['redis', 'config-provider', 'status-frontend', 'display-queue', 'terminal', 'myappcafeserver'];
+  private _containers = [
+    "redis",
+    "config-provider",
+    "status-frontend",
+    "display-queue",
+    "terminal",
+    "myappcafeserver",
+  ];
   async updateHandler(job: Job) {
-
     // if no details are provided or the current step is requested, we did not do any work on the job yet
-    if (job.status === 'QUEUED' || !job.statusDetails || !job.statusDetails.currentStep || job.statusDetails.currentStep === 'requested') {
-      const scheduledJobRequest = job.Progress(0.01, 'scheduled');
-      jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
+    if (
+      job.status === "QUEUED" ||
+      !job.statusDetails ||
+      !job.statusDetails.currentStep ||
+      job.statusDetails.currentStep === "requested"
+    ) {
+      const scheduledJobRequest = job.Progress(0.01, "scheduled");
+      jobUpdate(
+        job.jobId,
+        scheduledJobRequest,
+        this._thingName,
+        this._connection
+      );
     }
-    if (job.statusDetails?.currentStep === 'scheduled') {
+    if (job.statusDetails?.currentStep === "scheduled") {
       try {
         await this.update(job);
-        log('successfully updated for myappcafeserver')
+        log("successfully updated for myappcafeserver");
       } catch (err) {
-        error('error on updating myappcafeserver', err);
+        error("error on updating myappcafeserver", err);
         const failed = job.Fail(JSON.stringify(err), "AXXXX");
         jobUpdate(job.jobId, failed, this._thingName, this._connection);
       }
@@ -1045,64 +1494,123 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async shutdownHandler(job: Job) {
-    if (job.status !== 'QUEUED') return;
+    if (job.status !== "QUEUED") return;
     try {
-      info('shutdown job received', job)
-      jobUpdate(job.jobId, job.Progress(0.01, "registered"), this._thingName, this._connection);
-      info('current state of server application', this._state)
+      info("shutdown job received", job);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.01, "registered"),
+        this._thingName,
+        this._connection
+      );
+      info("current state of server application", this._state);
 
       const option = job.jobDocument?.option ?? JobOption.soft;
       if (option === JobOption.soft) {
-        jobUpdate(job.jobId, job.Progress(0.2, "waitOrdersFinished"), this._thingName, this._connection);
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.2, "waitOrdersFinished"),
+          this._thingName,
+          this._connection
+        );
         await this.waitForOrdersToFinish(10);
       }
-      jobUpdate(job.jobId, job.Progress(0.5, "allOrdersFinished"), this._thingName, this._connection);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.5, "allOrdersFinished"),
+        this._thingName,
+        this._connection
+      );
 
       if (this._state === ServerState.Okay) {
-        log('pausing application before shutting it down');
+        log("pausing application before shutting it down");
         try {
-          let pause = await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
-          info('paused application', pause.data);
+          let pause = await axios.post(this._url + "devices/pause", null, {
+            timeout: 30 * 1000,
+          });
+          info("paused application", pause.data);
         } catch (err) {
-          error('error while waiting for application to be paused', err)
+          error("error while waiting for application to be paused", err);
         }
       }
-      jobUpdate(job.jobId, job.Progress(0.75, "pauseBeforeShutdown"), this._thingName, this._connection);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.75, "pauseBeforeShutdown"),
+        this._thingName,
+        this._connection
+      );
 
       if (option === JobOption.forced && this.state !== ServerState.closed) {
-        log('shutdown is forced, so we will delete open orders');
+        log("shutdown is forced, so we will delete open orders");
         try {
           await axios.delete(this._url + "order");
-          jobUpdate(job.jobId, job.Progress(0.85, "deletingOldOrders"), this._thingName, this._connection);
+          jobUpdate(
+            job.jobId,
+            job.Progress(0.85, "deletingOldOrders"),
+            this._thingName,
+            this._connection
+          );
         } catch (err) {
-          warn('it was not possible to delete running orders, we will still continue', err)
+          warn(
+            "it was not possible to delete running orders, we will still continue",
+            err
+          );
         }
       }
 
-      jobUpdate(job.jobId, job.Progress(0.9, "shuttingDown"), this._thingName, this._connection);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.9, "shuttingDown"),
+        this._thingName,
+        this._connection
+      );
       await this.shutdownGracefully(20);
       await this.stop();
-      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('error shutting down application', err)
-      jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
+      error("error shutting down application", err);
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     }
   }
 
-
   async removeOrdersHandler(job: Job) {
     try {
-      jobUpdate(job.jobId, job.Progress(.5, 'connecting'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.5, "connecting"),
+        this._thingName,
+        this._connection
+      );
       const client = new Redis(REDIS_PORT, REDIS_HOST);
-      jobUpdate(job.jobId, job.Progress(.9, 'removingKeys'), this._thingName, this._connection)
-      await client.del('orders')
-      await client.disconnect()
-      jobUpdate(job.jobId, job.Succeed('ordersRemoved'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.9, "removingKeys"),
+        this._thingName,
+        this._connection
+      );
+      await client.del("orders");
+      await client.disconnect();
+      jobUpdate(
+        job.jobId,
+        job.Succeed("ordersRemoved"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      console.log('remove orders failed: ', err)
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('failed', "AXXXX");
+      error("job failed", { job, err });
+      console.log("remove orders failed: ", err);
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -1111,45 +1619,88 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async testBeverageHandler(job: Job) {
     let amount = 1;
     if (job.jobDocument.parameters && "amount" in job.jobDocument.parameters) {
-      amount = parseInt(job.jobDocument.parameters["amount"])
+      amount = parseInt(job.jobDocument.parameters["amount"]);
     }
 
-    info('test beverage requested');
+    info("test beverage requested");
     for (let index = 0; index < amount; index++) {
       try {
         await axios.post(this._url + "order/test");
       } catch (err) {
-        error('error while ordering test beverage', err);
-        jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection);
+        error("error while ordering test beverage", err);
+        jobUpdate(
+          job.jobId,
+          job.Fail("failed", "AXXXX"),
+          this._thingName,
+          this._connection
+        );
         return;
       }
     }
-    jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+    jobUpdate(
+      job.jobId,
+      job.Succeed("success"),
+      this._thingName,
+      this._connection
+    );
   }
 
   async initHandler(job: Job) {
     const option = job.jobDocument.option || JobOption.soft;
-    log('got job to init box, starting now')
+    log("got job to init box, starting now");
     return new Promise(async (resolve, reject) => {
-      jobUpdate(job.jobId, job.Progress(0.05, "registered"), this._thingName, this._connection);
-      if ((this.isOperatingNormally || this.isStarting) && option === JobOption.soft) {
-        log('server is in state ' + this._state + ' and blocking orders: ' + this._isBlockingOrders)
-        log('job will succeed because server is already in the correct state')
-        if (this._isBlockingOrders && this._state !== ServerState.closed && this._state !== ServerState.NeverInitialized) await this.toggleBlockOrders(false);
-        const success = job.Succeed('alreadyCorrectState');
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.05, "registered"),
+        this._thingName,
+        this._connection
+      );
+      if (
+        (this.isOperatingNormally || this.isStarting) &&
+        option === JobOption.soft
+      ) {
+        log(
+          "server is in state " +
+            this._state +
+            " and blocking orders: " +
+            this._isBlockingOrders
+        );
+        log("job will succeed because server is already in the correct state");
+        if (
+          this._isBlockingOrders &&
+          this._state !== ServerState.closed &&
+          this._state !== ServerState.NeverInitialized
+        )
+          await this.toggleBlockOrders(false);
+        const success = job.Succeed("alreadyCorrectState");
         jobUpdate(job.jobId, success, this._thingName, this._connection);
-        resolve(true)
+        resolve(true);
         return;
       }
       if (option === JobOption.hard) {
-        jobUpdate(job.jobId, job.Progress(0.2, "waitOrdersFinished"), this._thingName, this._connection);
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.2, "waitOrdersFinished"),
+          this._thingName,
+          this._connection
+        );
         await this.waitForOrdersToFinish(10);
-        jobUpdate(job.jobId, job.Progress(0.3, "allOrdersFinished"), this._thingName, this._connection);
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.3, "allOrdersFinished"),
+          this._thingName,
+          this._connection
+        );
       }
       if (option !== JobOption.soft) {
         await this.shutdownGracefully(10);
-        jobUpdate(job.jobId, job.Progress(0.4, "serverShutdown"), this._thingName, this._connection);
-        log('waiting 20 seconds')
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.4, "serverShutdown"),
+          this._thingName,
+          this._connection
+        );
+        log("waiting 20 seconds");
         await this.sleep(20 * 1000);
       }
       try {
@@ -1159,246 +1710,373 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           resolve(true);
         });
 
-        log('sending start command now')
-        jobUpdate(job.jobId, job.Progress(0.6, "initStarted"), this._thingName, this._connection);
+        log("sending start command now");
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.6, "initStarted"),
+          this._thingName,
+          this._connection
+        );
         await this.initBoxNow();
       } catch (err) {
-        jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
-        error('error when initializing box', err)
+        jobUpdate(
+          job.jobId,
+          job.Fail("failed", "AXXXX"),
+          this._thingName,
+          this._connection
+        );
+        error("error when initializing box", err);
         reject(err);
       }
-    })
+    });
   }
 
   async pauseHandler(job: Job): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
+      if (
+        job.jobDocument.option === JobOption.soft ||
+        job.jobDocument.option === JobOption.hard
+      ) {
+        log("got request to pause execution", job);
 
-      if (job.jobDocument.option === JobOption.soft || job.jobDocument.option === JobOption.hard) {
-
-        log('got request to pause execution', job)
-
-        if (this.state !== ServerState.Okay && this.state !== ServerState.Paused && this.state !== ServerState.Pausing) {
-          jobUpdate(job.jobId, job.Fail("incorrectState", "AXXXX"), this._thingName, this._connection);
-          reject('application is not in a state where pause is allowed, current state: ' + this.state);
+        if (
+          this.state !== ServerState.Okay &&
+          this.state !== ServerState.Paused &&
+          this.state !== ServerState.Pausing
+        ) {
+          jobUpdate(
+            job.jobId,
+            job.Fail("incorrectState", "AXXXX"),
+            this._thingName,
+            this._connection
+          );
+          reject(
+            "application is not in a state where pause is allowed, current state: " +
+              this.state
+          );
         }
-        if (this.state === ServerState.Paused || this.state === ServerState.Pausing) {
-          jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+        if (
+          this.state === ServerState.Paused ||
+          this.state === ServerState.Pausing
+        ) {
+          jobUpdate(
+            job.jobId,
+            job.Succeed("success"),
+            this._thingName,
+            this._connection
+          );
           resolve(true);
-          return
+          return;
         }
 
         this.on(ServerEvents.change, (newValue) => {
           if (newValue === ServerState.Paused) {
-            jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+            jobUpdate(
+              job.jobId,
+              job.Succeed("success"),
+              this._thingName,
+              this._connection
+            );
             resolve(true);
-            return
+            return;
           }
 
           if (newValue !== ServerState.Pausing && this.state !== newValue) {
-            warn('pause was requested, but server is going to state ' + newValue);
-            jobUpdate(job.jobId, job.Fail('wrongStateResult', "AXXXX"), this._thingName, this._connection);
-            reject('pause was requested, but server is going to state ' + newValue)
-            return
+            warn(
+              "pause was requested, but server is going to state " + newValue
+            );
+            jobUpdate(
+              job.jobId,
+              job.Fail("wrongStateResult", "AXXXX"),
+              this._thingName,
+              this._connection
+            );
+            reject(
+              "pause was requested, but server is going to state " + newValue
+            );
+            return;
           }
-        })
+        });
 
         if (this.state === ServerState.Okay) {
           try {
             if (job.jobDocument.option === JobOption.soft) {
-              jobUpdate(job.jobId, job.Progress(0.5, "waitOrdersFinished"), this._thingName, this._connection);
+              jobUpdate(
+                job.jobId,
+                job.Progress(0.5, "waitOrdersFinished"),
+                this._thingName,
+                this._connection
+              );
               await this.waitForOrdersToFinish(5);
-              jobUpdate(job.jobId, job.Progress(0.5, "allOrdersFinished"), this._thingName, this._connection);
+              jobUpdate(
+                job.jobId,
+                job.Progress(0.5, "allOrdersFinished"),
+                this._thingName,
+                this._connection
+              );
             }
-            await axios.post(this._url + 'devices/pause', null, { timeout: 30 * 1000 });
+            await axios.post(this._url + "devices/pause", null, {
+              timeout: 30 * 1000,
+            });
           } catch (err) {
-            error('error while waiting for application to be paused', err)
-            jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
-            reject()
-            return
+            error("error while waiting for application to be paused", err);
+            jobUpdate(
+              job.jobId,
+              job.Fail("failed", "AXXXX"),
+              this._thingName,
+              this._connection
+            );
+            reject();
+            return;
           }
         }
-
       } else if (job.jobDocument.option === JobOption.unpause) {
-        log('got request to unpause application', job)
+        log("got request to unpause application", job);
 
-        if (this.state !== 'Paused') {
-          jobUpdate(job.jobId, job.Fail('incorrectState', "AXXXX"), this._thingName, this._connection);
-          reject('unpause was requested, but server is in state ' + this.state)
-          return
+        if (this.state !== "Paused") {
+          jobUpdate(
+            job.jobId,
+            job.Fail("incorrectState", "AXXXX"),
+            this._thingName,
+            this._connection
+          );
+          reject("unpause was requested, but server is in state " + this.state);
+          return;
         }
         try {
-          await axios.post(this._url + 'devices/unpause', null, { timeout: 30 * 1000 });
+          await axios.post(this._url + "devices/unpause", null, {
+            timeout: 30 * 1000,
+          });
           await this.toggleBlockOrders(false);
           let success = job.Succeed("success");
           jobUpdate(job.jobId, success, this._thingName, this._connection);
           resolve(true);
         } catch (err) {
-          error('error while waiting for application to be unpaused', err)
-          jobUpdate(job.jobId, job.Fail("failed", "AXXXX"), this._thingName, this._connection);
-          reject()
-          return
+          error("error while waiting for application to be unpaused", err);
+          jobUpdate(
+            job.jobId,
+            job.Fail("failed", "AXXXX"),
+            this._thingName,
+            this._connection
+          );
+          reject();
+          return;
         }
-
       } else {
-        throw new Error('got pause operation job with an unknown option')
+        throw new Error("got pause operation job with an unknown option");
       }
-    })
+    });
   }
 
   async update(job: Job): Promise<Job> {
     return new Promise(async (resolve, reject) => {
-      let progress = job.Progress(0.2, "waitOrdersFinished")
+      let progress = job.Progress(0.2, "waitOrdersFinished");
       try {
-        if (this.isNotOperating || job.jobDocument.option === JobOption.forced || job.jobDocument.option === JobOption.hard) {
-          log('server is in state ' + this.state + ' -> update can be executed now')
+        if (
+          this.isNotOperating ||
+          job.jobDocument.option === JobOption.forced ||
+          job.jobDocument.option === JobOption.hard
+        ) {
+          log(
+            "server is in state " +
+              this.state +
+              " -> update can be executed now"
+          );
           if (job.jobDocument.option === JobOption.hard) {
             jobUpdate(job.jobId, progress, this._thingName, this._connection);
             await this.waitForOrdersToFinish(10);
           }
-          progress = job.Progress(0.3, "allOrdersFinished")
+          progress = job.Progress(0.3, "allOrdersFinished");
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
           await this.executeUpdate(job);
-          resolve(job)
+          resolve(job);
         } else {
-          log('server is in state ' + this.state + ' -> waiting for the server to be in an updateable state')
+          log(
+            "server is in state " +
+              this.state +
+              " -> waiting for the server to be in an updateable state"
+          );
           this.once(ServerEvents.readyForUpdate, async () => {
-            log('server is now in state ' + this.state + ' -> update can be executed now')
+            log(
+              "server is now in state " +
+                this.state +
+                " -> update can be executed now"
+            );
             await this.executeUpdate(job);
-            resolve(job)
-          })
+            resolve(job);
+          });
         }
       } catch (err) {
-        error('error while executing update', err)
-        reject(err)
+        error("error while executing update", err);
+        reject(err);
       }
-    })
+    });
   }
 
   async shellCommandHandler(job: Job) {
-    if (job.status === 'QUEUED') {
-      const command = job.jobDocument.parameters?.command
+    if (job.status === "QUEUED") {
+      const command = job.jobDocument.parameters?.command;
       if (!command) {
-        const noCommand = 'a shell command was requested, but there was no command string';
-        warn(noCommand)
+        const noCommand =
+          "a shell command was requested, but there was no command string";
+        warn(noCommand);
         const fail = job.Fail(noCommand, "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
         return;
       }
-      const scheduledJobRequest = job.Progress(0.1, 'scheduled');
-      scheduledJobRequest.statusDetails = scheduledJobRequest.statusDetails || new StatusDetails();
-      scheduledJobRequest.statusDetails.currentStep = 'command will be executed';
-      jobUpdate(job.jobId, scheduledJobRequest, this._thingName, this._connection);
+      const scheduledJobRequest = job.Progress(0.1, "scheduled");
+      scheduledJobRequest.statusDetails =
+        scheduledJobRequest.statusDetails || new StatusDetails();
+      scheduledJobRequest.statusDetails.currentStep =
+        "command will be executed";
+      jobUpdate(
+        job.jobId,
+        scheduledJobRequest,
+        this._thingName,
+        this._connection
+      );
 
       try {
         let stdOut;
-        await awaitableExec(command, { cwd: this._serverPath }, (out) => { stdOut = out });
+        await awaitableExec(command, { cwd: this._serverPath }, (out) => {
+          stdOut = out;
+        });
         const success = job.Succeed("CUSTOM#" + stdOut);
         jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (err) {
-        error('error while executing shell command', err)
-        const fail = job.Fail('error while executing shell command: ' + err, "AXXXX");
+        error("error while executing shell command", err);
+        const fail = job.Fail(
+          "error while executing shell command: " + err,
+          "AXXXX"
+        );
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
-  async httpHandler(job: Job) {
-
-  }
+  async httpHandler(job: Job) {}
 
   async blockHandler(job: Job, block: boolean) {
-    log('got request to block/unblock upcoming orders', job)
+    log("got request to block/unblock upcoming orders", job);
     if (this.state !== ServerState.Okay && this.state !== ServerState.Paused) {
-      const fail = job.Fail('application is not in a state where blocking/unblocking orders is allowed, current state: ' + this.state, "AXXXX");
+      const fail = job.Fail(
+        "application is not in a state where blocking/unblocking orders is allowed, current state: " +
+          this.state,
+        "AXXXX"
+      );
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
 
-    jobUpdate(job.jobId, job.Progress(0.1, "registered"), this._thingName, this._connection);
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.1, "registered"),
+      this._thingName,
+      this._connection
+    );
     if (block) {
-      log('got request to block upcoming orders', job)
-      jobUpdate(job.jobId, job.Progress(0.2, "registered"), this._thingName, this._connection);
-      if (this.state === ServerState.Okay || this.state === ServerState.Paused) {
+      log("got request to block upcoming orders", job);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.2, "registered"),
+        this._thingName,
+        this._connection
+      );
+      if (
+        this.state === ServerState.Okay ||
+        this.state === ServerState.Paused
+      ) {
         if (await this.toggleBlockOrders(true)) {
-          jobUpdate(job.jobId, job.Progress(0.2, "ordersBlocked"), this._thingName, this._connection);
+          jobUpdate(
+            job.jobId,
+            job.Progress(0.2, "ordersBlocked"),
+            this._thingName,
+            this._connection
+          );
           await this.waitForOrdersToFinish(10);
-          jobUpdate(job.jobId, job.Succeed("allOrdersFinished"), this._thingName, this._connection);
-          return
+          jobUpdate(
+            job.jobId,
+            job.Succeed("allOrdersFinished"),
+            this._thingName,
+            this._connection
+          );
+          return;
         }
-        error('error while trying to block orders')
-        const fail = job.Fail('error while trying to block orders\n', "AXXXX");
+        error("error while trying to block orders");
+        const fail = job.Fail("error while trying to block orders\n", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
-        return
+        return;
       }
       return;
     }
 
     // unblock
     if (await this.toggleBlockOrders(false)) {
-      jobUpdate(job.jobId, job.Succeed("ordersUnblocked"), this._thingName, this._connection)
-      return
+      jobUpdate(
+        job.jobId,
+        job.Succeed("ordersUnblocked"),
+        this._thingName,
+        this._connection
+      );
+      return;
     }
-    error('error while trying to unblock orders')
-    const fail = job.Fail('failed', "AXXXX");
+    error("error while trying to unblock orders");
+    const fail = job.Fail("failed", "AXXXX");
     jobUpdate(job.jobId, fail, this._thingName, this._connection);
   }
 
-
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
-    console.log('a')
-    log('trying to ' + (block ? 'block' : 'unblock') + ' orders');
-    console.log('b')
-    const url = this._url + "order/block"
-    console.log('c ' + url)
+    console.log("a");
+    log("trying to " + (block ? "block" : "unblock") + " orders");
+    console.log("b");
+    const url = this._url + "order/block";
+    console.log("c " + url);
     try {
-      console.log('d')
+      console.log("d");
       if (block) {
-        console.log('e')
+        console.log("e");
         await axios.put(url);
-        console.log('f')
+        console.log("f");
         return true;
       } else {
-        console.log('g')
+        console.log("g");
         await axios.delete(url);
-        console.log('h')
+        console.log("h");
         return true;
       }
     } catch (err) {
-      error('error blocking/unblocking orders', err);
-      console.log('error blocking/unblocking orders: ', err)
+      error("error blocking/unblocking orders", err);
+      console.log("error blocking/unblocking orders: ", err);
       return false;
     }
   }
 
   async startHandler(job: Job) {
-    if (job.status === 'QUEUED') {
-
+    if (job.status === "QUEUED") {
       const option = job.jobDocument.option || JobOption.soft;
-      let progress = job.Progress(0.01, 'registered')
+      let progress = job.Progress(0.01, "registered");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
       try {
-
-
         if (option === JobOption.hard) {
-          progress = job.Progress(0.2, 'waitOrdersFinished')
+          progress = job.Progress(0.2, "waitOrdersFinished");
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
           await this.waitForOrdersToFinish(10);
-          progress = job.Progress(0.6, 'allOrdersFinished')
+          progress = job.Progress(0.6, "allOrdersFinished");
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
         }
         if (option !== JobOption.soft) {
           await this.stop();
-          progress = job.Progress(0.8, 'serverShutdown')
+          progress = job.Progress(0.8, "serverShutdown");
           jobUpdate(job.jobId, progress, this._thingName, this._connection);
         }
 
         const images = job.jobDocument.images ?? this._containers;
-        await this.startContainers(images)
+        await this.startContainers(images);
         const success = job.Succeed("serverStarted");
-        jobUpdate(job.jobId, success, this._thingName, this._connection)
+        jobUpdate(job.jobId, success, this._thingName, this._connection);
       } catch (err) {
-        error('error starting containers', err);
-        const fail = job.Fail('failed', "AXXXX");
+        error("error starting containers", err);
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
@@ -1406,256 +2084,418 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   async setStartupHandler(job: Job) {
     try {
-      if (!job.jobDocument.parameters || !("rebootTime" in job.jobDocument.parameters)) {
-        throw new Error('no rebootTime defined')
+      if (
+        !job.jobDocument.parameters ||
+        !("rebootTime" in job.jobDocument.parameters)
+      ) {
+        throw new Error("no rebootTime defined");
       }
 
-      const rebootTime: Date = new Date(job.jobDocument.parameters["rebootTime"]);
-      const result = await axios.post(this._url + 'init/startup', { rebootTime: rebootTime.toISOString() })
+      const rebootTime: Date = new Date(
+        job.jobDocument.parameters["rebootTime"]
+      );
+      const result = await axios.post(this._url + "init/startup", {
+        rebootTime: rebootTime.toISOString(),
+      });
 
       if (result.status === 200) {
-        jobUpdate(job.jobId, job.Succeed("startSet"), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("startSet"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
 
-      jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
-    }
-    catch (err) {
-      error('job failed', { job, err })
-      console.log('err is ', err);
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('failed', "AXXXX");
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
+    } catch (err) {
+      error("job failed", { job, err });
+      console.log("err is ", err);
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
   async removeStartupHandler(job: Job) {
-    const result = await axios.delete(this._url + 'init/startup')
+    const result = await axios.delete(this._url + "init/startup");
     if (result.status === 200) {
-      jobUpdate(job.jobId, job.Succeed("startRemoved"), this._thingName, this._connection)
-      return
+      jobUpdate(
+        job.jobId,
+        job.Succeed("startRemoved"),
+        this._thingName,
+        this._connection
+      );
+      return;
     }
-    jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
+    jobUpdate(
+      job.jobId,
+      job.Fail("failed", "AXXXX"),
+      this._thingName,
+      this._connection
+    );
   }
 
   async rebootHandler(job: Job) {
-
     const reboot = async () => {
-      log('server is now in state ' + this.state + ' -> reboot can be executed now')
-      if (this.state !== ServerState.closed) await this.shutdownGracefully(10)
-      jobUpdate(job.jobId, job.Progress(0.4, "scheduled"), this._thingName, this._connection);
-      await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath })
-      await sleep(55000)
-      jobUpdate(job.jobId, job.Progress(0.4, "rebooting"), this._thingName, this._connection);
-    }
+      log(
+        "server is now in state " +
+          this.state +
+          " -> reboot can be executed now"
+      );
+      if (this.state !== ServerState.closed) await this.shutdownGracefully(10);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.4, "scheduled"),
+        this._thingName,
+        this._connection
+      );
+      await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath });
+      await sleep(55000);
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.4, "rebooting"),
+        this._thingName,
+        this._connection
+      );
+    };
 
     const scheduleReboot = async () => {
       if (job.jobDocument.option === JobOption.soft) {
-        jobUpdate(job.jobId, job.Progress(0.25, "waitUntilPossible"), this._thingName, this._connection);
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.25, "waitUntilPossible"),
+          this._thingName,
+          this._connection
+        );
       }
       this.once(ServerEvents.readyForUpdate, async () => {
-        reboot()
-      })
+        reboot();
+      });
       if (this.isNotOperating) {
-        this.emit(ServerEvents.readyForUpdate)
+        this.emit(ServerEvents.readyForUpdate);
       }
-    }
+    };
 
-    if (job.status === 'QUEUED') {
+    if (job.status === "QUEUED") {
       try {
-
-        jobUpdate(job.jobId, job.Progress(0.01, 'registered'), this._thingName, this._connection);
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.01, "registered"),
+          this._thingName,
+          this._connection
+        );
         if (job.jobDocument.option !== JobOption.soft) {
           if (job.jobDocument.option === JobOption.hard) {
-            jobUpdate(job.jobId, job.Progress(0.1, "waitForOrders"), this._thingName, this._connection);
+            jobUpdate(
+              job.jobId,
+              job.Progress(0.1, "waitForOrders"),
+              this._thingName,
+              this._connection
+            );
             await this.waitForOrdersToFinish(10);
-            jobUpdate(job.jobId, job.Progress(0.2, "allOrdersFinished"), this._thingName, this._connection);
+            jobUpdate(
+              job.jobId,
+              job.Progress(0.2, "allOrdersFinished"),
+              this._thingName,
+              this._connection
+            );
           }
           scheduleReboot();
           await this.shutdownGracefully(10);
         } else {
           scheduleReboot();
         }
-
       } catch (err) {
-        error('error while executing reboot', err)
-        const fail = job.Fail('failed', "AXXXX");
+        error("error while executing reboot", err);
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
-    }
-    else if (job.status === 'IN_PROGRESS') {
-      jobUpdate(job.jobId, job.Progress(0.7, "rebootSuccessful"), this._thingName, this._connection);
-      await this.startContainers(this._containers)
-      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
-    }
-    else {
-      jobUpdate(job.jobId, job.Fail('failed', 'AXXXX'), this._thingName, this._connection)
+    } else if (job.status === "IN_PROGRESS") {
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.7, "rebootSuccessful"),
+        this._thingName,
+        this._connection
+      );
+      await this.startContainers(this._containers);
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
+    } else {
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX"),
+        this._thingName,
+        this._connection
+      );
     }
   }
 
   async handleTunnel(tunnel: Tunnel) {
-    log('got request to open a tunnel', tunnel)
+    log("got request to open a tunnel", tunnel);
     return new Promise(async (resolve, reject) => {
       try {
         if (!tunnel.isOpen) {
           await tunnel.open();
         }
-        tunnel.isOpen ? resolve(tunnel) : reject('could not open tunnel')
+        tunnel.isOpen ? resolve(tunnel) : reject("could not open tunnel");
       } catch (err) {
-        error('error opening tunnel', err)
-        reject('error opening tunnel\n' + err)
+        error("error opening tunnel", err);
+        reject("error opening tunnel\n" + err);
       }
-    })
+    });
   }
 
   async resetRedisHandler(job: Job) {
     try {
-      jobUpdate(job.jobId, job.Progress(.20, 'connecting'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.2, "connecting"),
+        this._thingName,
+        this._connection
+      );
       const client = new Redis(REDIS_PORT, REDIS_HOST);
-      jobUpdate(job.jobId, job.Progress(.4, 'removingKeys'), this._thingName, this._connection)
-      await client.del('isMoving')
-      await client.del('unrecoverable')
-      jobUpdate(job.jobId, job.Progress(.8, 'settingCleanShutdown'), this._thingName, this._connection)
-      await client.set('shutdown', '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}');
-      await client.disconnect()
-      jobUpdate(job.jobId, job.Succeed('success'), this._thingName, this._connection)
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.4, "removingKeys"),
+        this._thingName,
+        this._connection
+      );
+      await client.del("isMoving");
+      await client.del("unrecoverable");
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.8, "settingCleanShutdown"),
+        this._thingName,
+        this._connection
+      );
+      await client.set(
+        "shutdown",
+        '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}'
+      );
+      await client.disconnect();
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
     } catch (err) {
-      error('job failed', { job, err })
-      console.log('redis reset failed: ', err)
-      if (job.status !== 'FAILED') {
-        const fail = job.Fail('failed', "AXXXX");
+      error("job failed", { job, err });
+      console.log("redis reset failed: ", err);
+      if (job.status !== "FAILED") {
+        const fail = job.Fail("failed", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
     }
   }
 
-
   async disableNotificationsHandler(job: Job) {
     if (job.jobDocument.option === JobOption.block) {
-      log('got request to disable notifications', job)
-      const result = await axios.post(this._url + 'notifications/disable')
+      log("got request to disable notifications", job);
+      const result = await axios.post(this._url + "notifications/disable");
       if (result.status === 200) {
-        jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection)
-        return
+        jobUpdate(
+          job.jobId,
+          job.Succeed("success"),
+          this._thingName,
+          this._connection
+        );
+        return;
       }
-      const fail = job.Fail('could not disable notifications', "AXXXX");
+      const fail = job.Fail("could not disable notifications", "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
 
     // re-enable notifications
-    log('got request to enable notifications', job)
-    const result = await axios.post(this._url + 'notifications/enable')
+    log("got request to enable notifications", job);
+    const result = await axios.post(this._url + "notifications/enable");
     if (result.status === 200) {
-      jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection)
-      return
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
+      return;
     }
-    const fail = job.Fail('could not enable notifications', "AXXXX");
+    const fail = job.Fail("could not enable notifications", "AXXXX");
     jobUpdate(job.jobId, fail, this._thingName, this._connection);
   }
 
-
   async executeUpdate(job: Job) {
     return new Promise(async (resolve, reject) => {
-      log('starting update now');
+      log("starting update now");
 
-      let progress = 0.4
+      let progress = 0.4;
 
       try {
         if (this.state !== ServerState.closed) {
-          log('setting state to updating')
-          const updateResponse = await axios.put(this._url + "setState/Updating", {}, { timeout: 20 * 1000 });
-          log('updating request returned', updateResponse.status)
+          log("setting state to updating");
+          const updateResponse = await axios.put(
+            this._url + "setState/Updating",
+            {},
+            { timeout: 20 * 1000 }
+          );
+          log("updating request returned", updateResponse.status);
         }
       } catch (err) {
-        warn('error while trying to send update notification to main server', err)
+        warn(
+          "error while trying to send update notification to main server",
+          err
+        );
       }
       if (job) {
-        let progressRequest = job.Progress(progress, 'serverShutdown');
-        jobUpdate(job.jobId, progressRequest, this._thingName, this._connection);
+        let progressRequest = job.Progress(progress, "serverShutdown");
+        jobUpdate(
+          job.jobId,
+          progressRequest,
+          this._thingName,
+          this._connection
+        );
       }
 
-      const images = (!job || !job.jobDocument.images || job.jobDocument.images.length === 0) ? this._containers : job.jobDocument.images;
-      log('handling update request', images);
+      const images =
+        !job || !job.jobDocument.images || job.jobDocument.images.length === 0
+          ? this._containers
+          : job.jobDocument.images;
+      log("handling update request", images);
 
-      let credentials: SessionCredentials | undefined
+      let credentials: SessionCredentials | undefined;
       try {
-        credentials = await SessionCredentials.createCredentials(this._serverPath, this._thingName, "iot-update-role");
-        if (!credentials) throw new Error("error getting credentials, job will fail");
-
+        credentials = await SessionCredentials.createCredentials(
+          this._serverPath,
+          this._thingName,
+          "iot-update-role"
+        );
+        if (!credentials)
+          throw new Error("error getting credentials, job will fail");
       } catch (err) {
-        console.log('executeUpdate filaed: ', err)
-        error('unable to get credentials for update', err)
-        reject('unable to get credentials for update\n' + err);
-        return
+        console.log("executeUpdate filaed: ", err);
+        error("unable to get credentials for update", err);
+        reject("unable to get credentials for update\n" + err);
+        return;
       }
 
       try {
-
-        await awaitableExec('docker-compose ' + this.composeFile + ' stop', {
-          cwd: this._serverPath
-        })
+        await awaitableExec(this.composeCommand + this.composeFile + " stop", {
+          cwd: this._serverPath,
+        });
         if (job) {
-          let progressRequest = job.Progress(0.5, 'stoppedApplications');
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          let progressRequest = job.Progress(0.5, "stoppedApplications");
+          jobUpdate(
+            job.jobId,
+            progressRequest,
+            this._thingName,
+            this._connection
+          );
         }
 
         if (job) {
-          let progressRequest = job.Progress(0.6, 'downloading');
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          let progressRequest = job.Progress(0.6, "downloading");
+          jobUpdate(
+            job.jobId,
+            progressRequest,
+            this._thingName,
+            this._connection
+          );
         }
 
         await sleep(10 * 1000);
 
-        log('downloading updates')
-        const command = "PLATFORM" in process.env && process.env.PLATFORM === "x86" ? "" : "export AWS_ACCESS_KEY_ID=" + credentials.accessKeyId + "; export AWS_SECRET_ACCESS_KEY=" + credentials.secretAccessKey + ";export AWS_SESSION_TOKEN=" + credentials.sessionToken + "; " + "/home/pi/.local/bin/aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; docker-compose" + this.composeFile + " pull";
-        debug('download command', command)
+        log("downloading updates");
+        const command =
+          "PLATFORM" in process.env && process.env.PLATFORM === "x86"
+            ? ""
+            : "export AWS_ACCESS_KEY_ID=" +
+              credentials.accessKeyId +
+              "; export AWS_SECRET_ACCESS_KEY=" +
+              credentials.secretAccessKey +
+              ";export AWS_SESSION_TOKEN=" +
+              credentials.sessionToken +
+              "; " +
+              "/home/pi/.local/bin/aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; " +
+              this.composeCommand +
+              this.composeFile +
+              " pull";
+        debug("download command", command);
         await awaitableExec(command, {
-          cwd: this._serverPath
-        })
+          cwd: this._serverPath,
+        });
         if (job) {
-          let progressRequest = job.Progress(0.7, 'downloadedFinished');
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          let progressRequest = job.Progress(0.7, "downloadedFinished");
+          jobUpdate(
+            job.jobId,
+            progressRequest,
+            this._thingName,
+            this._connection
+          );
         }
 
         await sleep(20 * 1000);
-        log('starting applications after update in 20 seconds')
-        await awaitableExec('docker-compose' + this.composeFile + ' up -d', {
-          cwd: this._serverPath
-        })
-        log('restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files.')
-        await sleep(20 * 1000)
-        await awaitableExec('docker-compose' + this.composeFile + ' up -d myappcafeserver', {
-          cwd: this._serverPath
-        })
+        log("starting applications after update in 20 seconds");
+        await awaitableExec(this.composeCommand + this.composeFile + " up -d", {
+          cwd: this._serverPath,
+        });
+        log(
+          "restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files."
+        );
+        await sleep(20 * 1000);
+        await awaitableExec(
+          this.composeCommand + this.composeFile + " up -d myappcafeserver",
+          {
+            cwd: this._serverPath,
+          }
+        );
         if (job) {
-          let progressRequest = job.Progress(0.8, 'restartingApplications');
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          let progressRequest = job.Progress(0.8, "restartingApplications");
+          jobUpdate(
+            job.jobId,
+            progressRequest,
+            this._thingName,
+            this._connection
+          );
         }
         progress = 0.9;
-        log('all applications restarted, waiting 90 seconds for all to settle')
+        log("all applications restarted, waiting 90 seconds for all to settle");
         await sleep(90 * 1000);
-        await axios.post(this._url + 'init/sanitize-soft');
-        log('sanitized the shutdown')
+        await axios.post(this._url + "init/sanitize-soft");
+        log("sanitized the shutdown");
         if (job) {
-          let progressRequest = job.Progress(progress, 'restartedApplications');
-          jobUpdate(job.jobId, progressRequest, this._thingName, this._connection)
+          let progressRequest = job.Progress(progress, "restartedApplications");
+          jobUpdate(
+            job.jobId,
+            progressRequest,
+            this._thingName,
+            this._connection
+          );
         }
       } catch (err) {
-        console.log('error during update: ', err)
-        error('error while exeuting update', err)
-        reject('unable to execute update\n' + err);
-        return
+        console.log("error during update: ", err);
+        error("error while exeuting update", err);
+        reject("unable to execute update\n" + err);
+        return;
       }
       if (job) {
         const succeeded = job.Succeed("success");
         jobUpdate(job.jobId, succeeded, this._thingName, this._connection);
       }
-      log('update successful')
-      resolve('all images updated successfully');
-    })
+      log("update successful");
+      resolve("all images updated successfully");
+    });
   }
 }
 
-export { Myappcafeserver }
+export { Myappcafeserver };

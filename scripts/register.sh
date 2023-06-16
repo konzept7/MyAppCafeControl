@@ -106,6 +106,7 @@ echo "VUE_APP_MAINSERVER_PORT=5002" >> /home/pi/srv/MyAppCafeControl/.env
 echo "VUE_APP_LANGUAGE=$language" >> /home/pi/srv/MyAppCafeControl/.env
 echo "COGNITO_POOL=$userpool" >> /home/pi/srv/MyAppCafeControl/.env
 echo "COGNITO_CLIENT=$clientid" >> /home/pi/srv/MyAppCafeControl/.env
+echo "COMPOSE_COMMAND=docker compose" >> /home/pi/srv/MyAppCafeControl/.env
 
 
 # ********************************************
