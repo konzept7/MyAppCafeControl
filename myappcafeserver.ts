@@ -296,11 +296,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             return [...array, ...(entry.RepoTags ?? [])];
           };
 
-          const allTags: Array<string> = response.reduce(
-            imageInfoAccumulator,
-            [] as Array<string>
-          );
-
           this.images = response.filter(
             (image) =>
               image.RepoTags?.some((tag: string) => tag.endsWith("latest")) ??
