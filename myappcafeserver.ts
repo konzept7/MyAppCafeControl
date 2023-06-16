@@ -262,9 +262,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   get composeCommand(): string {
     return process.env?.COMPOSE_COMMAND ?? "docker-compose";
   }
-  get myappcafeImages() {
-    return process.env?.myappcafeImages;
-  }
 
   async prepare(): Promise<boolean> {
     return new Promise((resolve) => {
@@ -303,22 +300,6 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             imageInfoAccumulator,
             [] as Array<string>
           );
-          log("all current image tags", allTags);
-          if (
-            this.myappcafeImages?.every(
-              (name: string) =>
-                allTags.some((tag) => tag.includes(name)) ?? false
-            )
-          ) {
-            log(
-              "images for every needed container found!",
-              this.myappcafeImages
-            );
-          } else {
-            warn(
-              "it was not possible to find every container needed for myappcafe"
-            );
-          }
 
           this.images = response.filter(
             (image) =>
