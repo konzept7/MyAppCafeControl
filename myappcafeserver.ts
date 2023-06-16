@@ -260,9 +260,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       : "";
   }
   get composeCommand(): string {
-    return "COMPOSE_COMMAND" in process.env
-      ? process.env.COMPOSE_COMMAND
-      : "docker-compose";
+    return process.env?.COMPOSE_COMMAND ?? "docker-compose";
+  }
+  get myappcafeImages() {
+    return process.env?.myappcafeImages;
   }
 
   async prepare(): Promise<boolean> {
@@ -304,8 +305,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           );
           log("all current image tags", allTags);
           if (
-            this.myappcafeImages.every((name) =>
-              allTags.some((tag) => tag.includes(name))
+            this.myappcafeImages?.every(
+              (name: string) =>
+                allTags.some((tag) => tag.includes(name)) ?? false
             )
           ) {
             log(
@@ -320,22 +322,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
           this.images = response.filter(
             (image) =>
-              image.RepoTags?.some((tag) => tag.endsWith("latest")) ?? false
+              image.RepoTags?.some((tag: string) => tag.endsWith("latest")) ??
+              false
           );
           const allCustomTags: Array<string> = this.images.reduce(
             imageInfoAccumulator,
             [] as Array<string>
           );
           log("all custom image tags", allCustomTags);
-          if (
-            this.customMyappcafeImages.every((name) =>
-              allCustomTags.some((tag) => tag.includes(name))
-            )
-          ) {
-            log("images for every custom container found!");
-          } else {
-            log("figure out how to handle preparation");
-          }
           resolve(true);
         }
       );
