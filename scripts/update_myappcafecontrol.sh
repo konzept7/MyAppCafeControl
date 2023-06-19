@@ -53,13 +53,13 @@ cd node_modules
 
 # download aws-crt if it does not exist
 if [[ ! -d "/home/pi/dependencies/aws-crt/aws-crt" ]]; then
-    cd /home/pi/dependencies
-    mkdir aws-crt
-    cd aws-crt
+    mkdir -p /home/pi/dependencies/aws-crt
+    cd /home/pi/dependencies/aws-crt
     wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
     unzip -o aws-crt.zip
 fi
 cd /home/pi/srv/MyAppCafeControl
+rm -rf node_modules/aws-crt
 cp -r /home/pi/dependencies/aws-crt/aws-crt node_modules/aws-crt
 npm run build
 # restart service after build
