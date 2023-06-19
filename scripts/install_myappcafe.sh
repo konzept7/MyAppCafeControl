@@ -216,6 +216,9 @@ if [[ "$installationPackage" != "gate" ]]; then
     curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
     sudo apt install -y nodejs
 
+    echo "Installing zip..."
+    sudo apt install -y zip unzip
+
     echo "Installing jq"
     sudo apt install -y jq
 fi
@@ -243,16 +246,20 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             git pull
         fi
 
-        echo "Installing AWS CRT"
+        if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
+            mkdir /home/pi/srv/MyAppCafeControl/node_modules
+        fi
 
-        cd /home/pi/srv/MyAppCafeControl/node_modules/aws-crt
-        git submodule update --init
-        npm install
-        # cp -r /home/pi/srv/aws-crt-nodejs/dist/bin/linux-arm /home/pi/srv/MyAppCafeControl/node_modules/aws-crt/dist/bin/linux-arm
+        echo "Downloading AWS CRT"
+        cd /home/pi/srv/MyAppCafeControl/node_modules/
+        wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
+        unzip aws-crt.zip
+        rm aws-crt.zip
 
         echo "Installing docker-compose"
         sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev python3-bcrypt -y
         sudo pip3 install docker-compose==1.26.0
+        echo "docker-compose=docker compose" | sudo tee -a /etc/profile.d/aliases.sh
         (crontab -l ; echo "0 4 * * 0 /usr/bin/docker system prune -f")| crontab -
 
         echo "Installing cmake"
@@ -266,6 +273,11 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
 
         echo "Installing VNC"
         sudo apt install realvnc-vnc-server -y
+        
+        echo "Installing nginx"
+        sudo apt install -y nginx
+        sudo rm /etc/nginx/nginx.conf
+        sudo cp /home/pi/srv/MyAppCafeControl/scripts/nginx.server.conf /etc/nginx/nginx.conf
     fi
     echo '-----------------------------------------------------------'
 fi

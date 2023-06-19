@@ -28,7 +28,7 @@ while [[ ! $thingName =~ ^[a-zA-Z0-9_-]+$ ]]; do
 done
 
 # read -p "Enter type of new thing [Server, gate, cam, display] : " thingType
-thingType=box
+thingType=Box
 
 read -p "[de, us, at, fr] Enter the lower case 2-digit country code where the box will be located: " thingChildGroup
 while [[ ! $thingChildGroup =~ ^(de|us|at|fr)$ ]]; do
@@ -85,7 +85,7 @@ userpool=eu-central-1_7iLxD02o9
 clientid=41bsovn23a01gv0ogt1ag2ih2p
 
 isValidThing=0
-if [[ "$thingType" != "box" ]]; then
+if [[ "$thingType" != "Box" ]]; then
   exit 7
 fi
 echo "Registering a new thing as $thingType"
@@ -106,6 +106,7 @@ echo "VUE_APP_MAINSERVER_PORT=5002" >> /home/pi/srv/MyAppCafeControl/.env
 echo "VUE_APP_LANGUAGE=$language" >> /home/pi/srv/MyAppCafeControl/.env
 echo "COGNITO_POOL=$userpool" >> /home/pi/srv/MyAppCafeControl/.env
 echo "COGNITO_CLIENT=$clientid" >> /home/pi/srv/MyAppCafeControl/.env
+echo "COMPOSE_COMMAND=docker compose" >> /home/pi/srv/MyAppCafeControl/.env
 
 
 # ********************************************
