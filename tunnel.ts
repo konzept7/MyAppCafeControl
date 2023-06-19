@@ -21,10 +21,10 @@ const TunnelServices: {
   TERMINAL: 5006,
   "DISPLAY-QUEUE": 5007,
   "CONFIG-PROVIDER": 8000,
-  GATE1: 49122, // will be forwarded to 192.168.155.21:22
-  GATE2: 49222, // will be forwarded to 192.168.155.21:22
-  GATE3: 49322, // will be forwarded to 192.168.155.21:22
-  ROBOT: 50023, // will be forwarded to 192.168.155.17:23
+  GATE1: 49122, // will be forwarded by nginx to 192.168.155.21:22
+  GATE2: 49222, // will be forwarded by nginx to 192.168.155.21:22
+  GATE3: 49322, // will be forwarded by nginx to 192.168.155.21:22
+  ROBOT: 50023, // will be forwarded by nginx to 192.168.155.50:23
 });
 
 class Tunnel {

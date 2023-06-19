@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 
 echo
 echo '#########################'
@@ -49,6 +49,18 @@ cd /home/pi/srv/MyAppCafeControl
 git checkout .
 git pull origin master
 npm install
+cd node_modules
+
+# download aws-crt if it does not exist
+if [[ ! -d "/home/pi/dependencies/aws-crt/aws-crt" ]]; then
+    cd /home/pi/dependencies
+    mkdir aws-crt
+    cd aws-crt
+    wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
+    unzip -o aws-crt.zip
+fi
+cd /home/pi/srv/MyAppCafeControl
+cp -r /home/pi/dependencies/aws-crt/aws-crt node_modules/aws-crt
 npm run build
 # restart service after build
 sudo systemctl start myappcafecontrol.service
