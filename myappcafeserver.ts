@@ -623,12 +623,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknownOperation", "AXXXX");
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      return Promise.reject();
     } catch (err) {
       error("job failed", { job, err });
       if (job.status !== "FAILED") {
         const fail = job.Fail("unknown", "AXXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
+      return Promise.reject();
     }
   }
   async uploadLogsHandler(job: Job) {
