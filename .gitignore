@@ -17,3 +17,6 @@ me.cert.pfx
 .DS_Store
 update.log
 dependencies
+scripts/once.flag
+scripts/once.log
+package-lock.json

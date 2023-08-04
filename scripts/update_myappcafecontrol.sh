@@ -10,7 +10,7 @@ echo
 
 workdir=/home/pi/srv/MyAppCafeControl
 logfile=$workdir/update.log
-dependencies=$workdir/dependencies
+
 echo "$(date) Updating MyAppCafé - Control..."  >> $logfile
 
 SCRIPTFILE=/etc/systemd/system/myappcafecontrol.service
@@ -48,42 +48,41 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     echo "$(date) Service script created..." >> /home/pi/srv/MyAppCafeControl/update.log
 fi
 
+echo "$(date) Checking for changes in remote repository..." >> $logfile
+git fetch origin
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse @{u})
 
-# update service
-# first shutdown service
+if [ $LOCAL != $REMOTE ]; then
+    echo "$(date) Changes detected in remote repository. Updating..." >> $logfile
+else
+    echo "$(date) No changes detected in remote repository. Exiting..." >> $logfile
+    exit 0
+fi
 
+echo "$(date) Run once.sh script" >> $logfile
+/home/pi/srv/MyAppCafeControl/scripts/once.sh
 
 echo "$(date) Stopping service..." >> $logfile
 sudo systemctl stop myappcafecontrol.service
-# pull current version
 
+# pull current version
 cd $workdir || exit
 echo "$(date) Pulling current version..." >> $logfile
 git checkout .
 git pull origin master
 
-# download aws-crt if it does not exist
-echo "$(date) Checking aws-crt..." >> $logfile
-if [[ ! -d "$dependencies/aws-crt/aws-crt" ]]; then
-    echo "$(date) Downloading aws-crt..." >> $logfile
-    mkdir -p $dependencies/aws-crt
-    cd $dependencies/aws-crt || exit
-    wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
-    echo "$(date) Unzipping aws-crt..." >> $logfile
-    unzip -o aws-crt.zip
-    echo "$(date) Unzipped aws-crt.zip..." >> $logfile
+# Check if package.json has changed
+if ! git diff --quiet HEAD package.json; then
+    echo "$(date) package.json has changed. Installing dependencies..." >> $logfile
+    npm install
+else
+    echo "$(date) package.json has not changed. Skipping dependency installation..." >> $logfile
 fi
-cd $workdir || exit
-
-echo "$(date) Installing dependencies..." >> $logfile
-npm install
-cd $workdir/node_modules || exit
-
-
 
 echo "$(date) Building project..." >> $logfile
 npm run build
-# restart service after build
 
+# restart service after build
 echo "$(date) Starting service..." >> $logfile
 sudo systemctl start myappcafecontrol.service
