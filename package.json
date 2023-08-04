@@ -42,6 +42,6 @@
     "typescript": "^4.2.4"
   },
   "overrides": {
-    "aws-crt": "../dependencies/aws-crt"
+    "aws-crt": "../dependencies/aws-crt/aws-crt"
   }
 }

@@ -16,3 +16,4 @@ jobs
 me.cert.pfx
 .DS_Store
 update.log
+dependencies

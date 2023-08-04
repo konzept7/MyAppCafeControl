@@ -61,9 +61,6 @@ cd $workdir || exit
 echo "$(date) Pulling current version..." >> $logfile
 git checkout .
 git pull origin master
-echo "$(date) Installing dependencies..." >> $logfile
-npm install
-cd $workdir/node_modules || exit
 
 # download aws-crt if it does not exist
 echo "$(date) Checking aws-crt..." >> $logfile
@@ -77,6 +74,12 @@ if [[ ! -d "$dependencies/aws-crt/aws-crt" ]]; then
     echo "$(date) Unzipped aws-crt.zip..." >> $logfile
 fi
 cd $workdir || exit
+
+echo "$(date) Installing dependencies..." >> $logfile
+npm install
+cd $workdir/node_modules || exit
+
+
 
 echo "$(date) Building project..." >> $logfile
 npm run build
