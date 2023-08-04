@@ -1,4 +1,4 @@
- #!/bin/bash
+#!/bin/bash
 
 echo
 echo '#########################'
@@ -7,12 +7,13 @@ echo '      UPDATE SCRIPT'
 echo '#########################'
 echo
 
+echo "$(date) Updating MyAppCafé - Control..."  > /home/pi/srv/MyAppCafeControl/update.log
 
 SCRIPTFILE=/etc/systemd/system/myappcafecontrol.service
 
 # check if service script exists, if not create it
 if [[ ! -f "$SCRIPTFILE" ]]; then
-    echo 'Creating service script...'
+    echo "$(date) Creating service script..." > /home/pi/srv/MyAppCafeControl/update.log
     # create script file
     cd /home/pi/
     sudo rm myappcafecontrol.service
@@ -44,35 +45,37 @@ fi
 
 # update service
 # first shutdown service
-echo 'Stopping service...'
+echo "$(date) Stopping service..." > /home/pi/srv/MyAppCafeControl/update.log
 sudo systemctl stop myappcafecontrol.service
 # pull current version
 cd /home/pi/srv/MyAppCafeControl
-echo 'Pulling latest version...'
+echo "$(date) Pulling current version..." > /home/pi/srv/MyAppCafeControl/update.log
 git checkout .
 git pull origin master
-echo 'Installing dependencies...'
+echo "$(date) Installing dependencies..." > /home/pi/srv/MyAppCafeControl/update.log
 npm install
 cd node_modules
 
 # download aws-crt if it does not exist
-echo 'Checking for aws-crt...'
+echo "$(date) Checking aws-crt..." > /home/pi/srv/MyAppCafeControl/update.log
 if [[ ! -d "/home/pi/dependencies/aws-crt/aws-crt" ]]; then
-    echo 'Downloading aws-crt...'
+    echo "$(date) Downloading aws-crt..." > /home/pi/srv/MyAppCafeControl/update.log
     mkdir -p /home/pi/dependencies/aws-crt
     cd /home/pi/dependencies/aws-crt
     wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
+    echo "$(date) Unzipping aws-crt..." > /home/pi/srv/MyAppCafeControl/update.log
     unzip -o aws-crt.zip
+    echo "$(date) Unzipped aws-crt.zip..." > /home/pi/srv/MyAppCafeControl/update.log
 fi
 cd /home/pi/srv/MyAppCafeControl
 
-echo 'Copying aws-crt...'
+echo "$(date) Copying aws-crt..." > /home/pi/srv/MyAppCafeControl/update.log
 rm -rf node_modules/aws-crt
 cp -r /home/pi/dependencies/aws-crt/aws-crt node_modules/aws-crt
 
-echo 'Building...'
+echo "$(date) Building project..." > /home/pi/srv/MyAppCafeControl/update.log
 npm run build
 # restart service after build
 
-echo 'Starting service...'
+echo "$(date) Starting service..." > /home/pi/srv/MyAppCafeControl/update.log
 sudo systemctl start myappcafecontrol.service
