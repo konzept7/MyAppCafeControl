@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version=2
+version=1
 
 workdir=/home/pi/srv/MyAppCafeControl/scripts
 logfile=$workdir/once.log
@@ -30,8 +30,14 @@ fi
 echo "$(date) add daily check at 2am to crontab..." >> $logfile
 (crontab -l 2>/dev/null; echo "0 2 * * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
 
+echo "$(date) updating from $(node -v) latest version of node" >> $logfile
+sudo npm install -g n
+sudo n 14.21.3
+hash -r
+echo "$(date) updated node to $(node -v)" >> $logfile
+
 echo "$(date) updating latest version of npm" >> $logfile
-sudo npm install -g npm@latest
+sudo npm install -g npm
 
 echo "$(date) setting executed version flag to $version" >> $logfile
 echo "$version" > "$flagfile"
