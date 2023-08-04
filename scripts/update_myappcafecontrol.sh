@@ -61,6 +61,7 @@ else
 fi
 
 echo "$(date) Run once.sh script" >> $logfile
+chmod +x $workdir/scripts/once.sh
 /home/pi/srv/MyAppCafeControl/scripts/once.sh
 
 echo "$(date) Stopping service..." >> $logfile
