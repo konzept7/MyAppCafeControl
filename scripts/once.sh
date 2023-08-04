@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version=1
+version=2
 
 workdir=/home/pi/srv/MyAppCafeControl/scripts
 logfile=$workdir/once.log
