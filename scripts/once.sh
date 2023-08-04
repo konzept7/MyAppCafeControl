@@ -5,7 +5,7 @@ version=2
 workdir=/home/pi/srv/MyAppCafeControl/scripts
 logfile=$workdir/once.log
 
-echo "$(date) MyAppCafé - Control - Once script version $(version)" >> $logfile
+echo "$(date) MyAppCafé - Control - Once script version $version" >> $logfile
 
 # !!! START: DO NOT CHANGE THIS PART OF THE SCRIPT !!!
 
