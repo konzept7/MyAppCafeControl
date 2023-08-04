@@ -30,7 +30,10 @@ fi
 echo "$(date) add daily check at 2am to crontab..." >> $logfile
 (crontab -l 2>/dev/null; echo "0 2 * * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
 
-echot "$(date) setting executed version flag to $version" >> $logfile
+echo "$(date) updating latest version of npm" >> $logfile
+sudo npm install -g npm@latest
+
+echo "$(date) setting executed version flag to $version" >> $logfile
 echo "$version" > "$flagfile"
 
 # part that should not be executed if previous attempts failed
