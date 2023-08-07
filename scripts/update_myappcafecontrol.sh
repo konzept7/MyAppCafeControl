@@ -48,6 +48,10 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     echo "$(date) Service script created..." >> /home/pi/srv/MyAppCafeControl/update.log
 fi
 
+echo "$(date) Run once.sh script" >> $logfile
+chmod +x $workdir/scripts/once.sh
+/home/pi/srv/MyAppCafeControl/scripts/once.sh
+
 echo "$(date) Checking for changes in remote repository..." >> $logfile
 git fetch origin
 LOCAL=$(git rev-parse HEAD)
@@ -59,10 +63,6 @@ else
     echo "$(date) No changes detected in remote repository. Exiting..." >> $logfile
     exit 0
 fi
-
-echo "$(date) Run once.sh script" >> $logfile
-chmod +x $workdir/scripts/once.sh
-/home/pi/srv/MyAppCafeControl/scripts/once.sh
 
 echo "$(date) Stopping service..." >> $logfile
 sudo systemctl stop myappcafecontrol.service
