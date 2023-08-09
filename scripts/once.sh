@@ -1,13 +1,14 @@
 #!/bin/bash
 
-version=3
-
 workdir=/home/pi/srv/MyAppCafeControl/scripts
+version=0
+
+# get the current version by listing all shell script files in the 'once' directory and taking the highest version number
+version=$(ls -1 $workdir/once/*.sh | sed 's/.*\///' | sed 's/[^0-9]*//g' | sort -n | tail -1)
+
 logfile=$workdir/once.log
 
 echo "$(date) MyAppCafé - Control - Once script version $version" >> $logfile
-
-# !!! START: DO NOT CHANGE THIS PART OF THE SCRIPT !!!
 
 # Check if the flag file exists and contains a version number
 flagfile=$workdir/version_flag
@@ -23,21 +24,19 @@ else
     echo "$(date) No flag file found. Continuing..." >> $logfile
 fi
 
-# !!! END !!!
+# make all scripts executable
+chmod +x $workdir/once/*.sh
 
-# part that should be executed even if previous attempts failed
-
-# echo "$(date) add daily check at 2am to crontab..." >> $logfile
-# (crontab -l 2>/dev/null; echo "0 2 * * * /home/pi/srv/MyAppCafeControl/scripts/update_myappcafecontrol.sh") | crontab -
-
-echo "$(date) updating from $(node -v) latest version of node" >> $logfile
-# sudo npm install -g n
-sudo n 14.21.3
-# hash -r
-# echo "$(date) updated node to $(node -v)" >> $logfile
-
-echo "$(date) updating latest version of npm" >> $logfile
-sudo npm install -g npm
+# execute the scripts in the 'once' directory by version number
+for file in $workdir/once/*.sh; do
+    if [ -f "$file" ]; then
+        file_version=$(echo "$file" | sed 's/.*\///' | sed 's/[^0-9]*//g')
+        if [ "$file_version" -le "$version" ]; then
+            echo "$(date) Executing $file" >> $logfile
+            bash "$file"
+        fi
+    fi
+done
 
 echo "$(date) setting executed version flag to $version" >> $logfile
 echo "$version" > "$flagfile"
