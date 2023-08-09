@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# DO NOT CHANGE THIS SCRIPT
+
 workdir=/home/pi/srv/MyAppCafeControl/scripts
 version=0
 
@@ -34,11 +36,8 @@ for file in $workdir/once/*.sh; do
         if [ "$file_version" -le "$version" ]; then
             echo "$(date) Executing $file" >> $logfile
             bash "$file"
+            echo "$(date) setting executed version flag to $file_version" >> $logfile
+            echo "$file_version" > "$flagfile"
         fi
     fi
 done
-
-echo "$(date) setting executed version flag to $version" >> $logfile
-echo "$version" > "$flagfile"
-
-# part that should not be executed if previous attempts failed
