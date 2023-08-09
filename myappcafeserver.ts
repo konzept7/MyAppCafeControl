@@ -14,8 +14,11 @@ import { log, warn, info, error, debug } from "./log";
 import { Rm, RobotTest } from "./RobotTest";
 
 // control docker with dockerode
+import Dockerode from "dockerode";
 import { existsSync, readFile, writeFile } from "fs";
 import path from "path";
+
+var docker = new Dockerode();
 
 const signalR = require("@microsoft/signalr");
 const Redis = require("ioredis");
@@ -55,6 +58,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _connection: mqtt.MqttClientConnection;
   private _thingName: string;
   public shadow: ServerShadow;
+  public containers: Array<Dockerode.ContainerInfo>;
+  public images: Array<Dockerode.ImageInfo>;
   private _isBlockingOrders = false;
   private _currentOrders = new Array<any>();
 
@@ -105,6 +110,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     const initialState = new ServerShadowState();
     initialState.desired = ServerState.NeverInitialized;
     initialState.reported = ServerState.closed;
+    this.containers = [];
+    this.images = [];
     this.shadow = new ServerShadow(connection, initialState);
     this._stateConnection = new signalR.HubConnectionBuilder()
       .withUrl(this._stateHubUrl)
@@ -259,61 +266,61 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async prepare(): Promise<boolean> {
     return new Promise((resolve) => {
       // check for local proxy
-      return resolve;
-      // // list all running containers
-      // docker.listContainers(
-      //   (err: any, response: Array<Dockerode.ContainerInfo>) => {
-      //     if (err) {
-      //       error("error listing containers", err);
-      //       return;
-      //     }
-      //     this.containers = response;
-      //     log("containers running", this.containers);
-      //   }
-      // );
 
-      // // find out if images are built for all necessary containers
-      // docker.listImages(
-      //   async (err: any, response: Array<Dockerode.ImageInfo>) => {
-      //     if (err) {
-      //       error("error listing images", err);
-      //       return;
-      //     }
+      // list all running containers
+      docker.listContainers(
+        (err: any, response: Array<Dockerode.ContainerInfo>) => {
+          if (err) {
+            error("error listing containers", err);
+            return;
+          }
+          this.containers = response;
+          log("containers running", this.containers);
+        }
+      );
 
-      //     log("all images", response);
+      // find out if images are built for all necessary containers
+      docker.listImages(
+        async (err: any, response: Array<Dockerode.ImageInfo>) => {
+          if (err) {
+            error("error listing images", err);
+            return;
+          }
 
-      //     let imageInfoAccumulator = (
-      //       array: Array<string>,
-      //       entry: Dockerode.ImageInfo
-      //     ): Array<string> => {
-      //       return [...array, ...(entry.RepoTags ?? [])];
-      //     };
+          log("all images", response);
 
-      //     this.images = response.filter(
-      //       (image) =>
-      //         image.RepoTags?.some((tag: string) => tag.endsWith("latest")) ??
-      //         false
-      //     );
-      //     const allCustomTags: Array<string> = this.images.reduce(
-      //       imageInfoAccumulator,
-      //       [] as Array<string>
-      //     );
-      //     log("all custom image tags", allCustomTags);
-      //     resolve(true);
-      //   }
-      // );
+          let imageInfoAccumulator = (
+            array: Array<string>,
+            entry: Dockerode.ImageInfo
+          ): Array<string> => {
+            return [...array, ...(entry.RepoTags ?? [])];
+          };
+
+          this.images = response.filter(
+            (image) =>
+              image.RepoTags?.some((tag: string) => tag.endsWith("latest")) ??
+              false
+          );
+          const allCustomTags: Array<string> = this.images.reduce(
+            imageInfoAccumulator,
+            [] as Array<string>
+          );
+          log("all custom image tags", allCustomTags);
+          resolve(true);
+        }
+      );
     });
   }
 
-  // async getRunningContainers(): Promise<Array<Dockerode.Container>> {
-  //   const containerInfos = await docker.listContainers();
-  //   const containers: Array<Dockerode.Container> = [];
-  //   for (const info of containerInfos) {
-  //     const container = docker.getContainer(info.Id);
-  //     containers.push(container);
-  //   }
-  //   return containers;
-  // }
+  async getRunningContainers(): Promise<Array<Dockerode.Container>> {
+    const containerInfos = await docker.listContainers();
+    const containers: Array<Dockerode.Container> = [];
+    for (const info of containerInfos) {
+      const container = docker.getContainer(info.Id);
+      containers.push(container);
+    }
+    return containers;
+  }
 
   specialTopics: string[] = [];
   disconnect(): Promise<any> {
