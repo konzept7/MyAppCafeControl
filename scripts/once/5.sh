@@ -9,10 +9,10 @@ echo "$(date) MyAppCafé - Control - executing once script 5 as $(whoami)" >> $l
 echo "$(date) MyAppCafé - Control - installing n" >> $logfile
 sudo npm install -g n
 
-sudo mkdir -p /usr/local/n
-sudo chown -R $(whoami) /usr/local/n
-sudo mkdir -p /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
-sudo chown -R $(whoami) /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
+# sudo mkdir -p /usr/local/n
+# sudo chown -R $(whoami) /usr/local/n
+# sudo mkdir -p /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
+# sudo chown -R $(whoami) /usr/local/bin /usr/local/lib /usr/local/include /usr/local/share
 
 
 # install node 14.21.3
