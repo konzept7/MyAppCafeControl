@@ -9,15 +9,14 @@ echo
 
 
 workdir=/home/pi/srv/MyAppCafeControl
-logfile=$workdir/update.log
 
-echo "$(date) Updating MyAppCafé - Control..."  >> $logfile
+echo "$(date) Updating MyAppCafé - Control..." 
 
 SCRIPTFILE=/etc/systemd/system/myappcafecontrol.service
 
 # check if service script exists, if not create it
 if [[ ! -f "$SCRIPTFILE" ]]; then
-    echo "$(date) Creating service script..." >> $logfile
+    echo "$(date) Creating service script..."
     # create script file
     cd /home/pi/
     sudo rm myappcafecontrol.service
@@ -45,45 +44,45 @@ if [[ ! -f "$SCRIPTFILE" ]]; then
     sudo systemctl enable myappcafecontrol.service
     sudo systemctl start myappcafecontrol.service
 
-    echo "$(date) Service script created..." >> /home/pi/srv/MyAppCafeControl/update.log
+    echo "$(date) Service script created..."
 fi
 
-echo "$(date) Run once.sh script" >> $logfile
+echo "$(date) Run once.sh script"
 chmod +x $workdir/scripts/once.sh
-/home/pi/srv/MyAppCafeControl/scripts/once.sh
+/home/pi/srv/MyAppCafeControl/scripts/once.sh >> /home/pi/srv/MyAppCafeControl/scripts/once.log
 
-echo "$(date) Checking for changes in remote repository..." >> $logfile
+echo "$(date) Checking for changes in remote repository..."
 git fetch origin
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse @{u})
 
 if [ $LOCAL != $REMOTE ]; then
-    echo "$(date) Changes detected in remote repository. Updating..." >> $logfile
+    echo "$(date) Changes detected in remote repository. Updating..."
 else
-    echo "$(date) No changes detected in remote repository. Exiting..." >> $logfile
+    echo "$(date) No changes detected in remote repository. Exiting..."
     exit 0
 fi
 
-echo "$(date) Stopping service..." >> $logfile
+echo "$(date) Stopping service..."
 sudo systemctl stop myappcafecontrol.service
 
 # pull current version
 cd $workdir || exit
-echo "$(date) Pulling current version..." >> $logfile
+echo "$(date) Pulling current version..."
 git checkout .
 git pull origin master
 
 # Check if package.json has changed
 if ! git diff --quiet HEAD package.json; then
-    echo "$(date) package.json has changed. Installing dependencies..." >> $logfile
+    echo "$(date) package.json has changed. Installing dependencies..."
     npm install
 else
-    echo "$(date) package.json has not changed. Skipping dependency installation..." >> $logfile
+    echo "$(date) package.json has not changed. Skipping dependency installation..."
 fi
 
-echo "$(date) Building project..." >> $logfile
+echo "$(date) Building project..."
 npm run build
 
 # restart service after build
-echo "$(date) Starting service..." >> $logfile
+echo "$(date) Starting service..."
 sudo systemctl start myappcafecontrol.service

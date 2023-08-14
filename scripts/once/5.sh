@@ -1,12 +1,11 @@
 #!/bin/bash
 
 workdir=/home/pi/srv/MyAppCafeControl/scripts
-logfile=$workdir/once.log
 
-echo "$(date) MyAppCafé - Control - executing once script 5 as $(whoami)" >> $logfile
+echo "$(date) MyAppCafé - Control - executing once script 5 as $(whoami)"
 
 # install n
-echo "$(date) MyAppCafé - Control - installing n" >> $logfile
+echo "$(date) MyAppCafé - Control - installing n"
 sudo npm install -g n
 
 # sudo mkdir -p /usr/local/n
@@ -18,4 +17,4 @@ sudo npm install -g n
 # install node 14.21.3
 sudo /usr/local/n 14.21.3
 
-echo "$(date) MyAppCafé - Control - finished executing once script 5" >> $logfile
+echo "$(date) MyAppCafé - Control - finished executing once script 5"
