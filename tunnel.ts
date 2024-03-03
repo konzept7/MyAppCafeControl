@@ -19,6 +19,8 @@ const TunnelServices: {
   MYAPPCAFESERVER: 5002,
   "STATUS-FRONTEND": 5005,
   TERMINAL: 5006,
+  "VNC-TERMINAL-LEFT": 48025, // will be forwarded by nginx to 192.168.155.25:48000
+  "VNC-TERMINAL-RIGHT": 48026, // will be forwarded by nginx to 192.168.155.26:48000
   "DISPLAY-QUEUE": 5007,
   "CONFIG-PROVIDER": 8000,
   GATE1: 49122, // will be forwarded by nginx to 192.168.155.21:22

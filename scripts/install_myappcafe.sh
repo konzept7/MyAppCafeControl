@@ -309,6 +309,8 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
 
     sudo chown pi:pi /home/pi/.Xsession
 
+    echo "Installing VNC"
+    sudo apt install realvnc-vnc-server -y
 
     # boot to desktop
     sudo systemctl set-default graphical.target

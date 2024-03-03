@@ -2418,13 +2418,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
         await sleep(20 * 1000);
         log("starting applications after update in 20 seconds");
-        await awaitableExec(this.composeCommand + this.composeFile + " up -d", {
-          cwd: this._serverPath,
-        });
+        await awaitableExec(
+          this.composeCommand +
+            this.composeFile +
+            " up -d config-provider redis terminal status-frontend display-queue",
+          {
+            cwd: this._serverPath,
+          }
+        );
         log(
           "restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files."
         );
-        await sleep(20 * 1000);
+        await sleep(30 * 1000);
         await awaitableExec(
           this.composeCommand + this.composeFile + " up -d myappcafeserver",
           {
