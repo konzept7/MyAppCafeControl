@@ -13,9 +13,9 @@ echo "****************************************************************"
 
 
 if ! aws sts get-caller-identity; then
-  read -p -r "Enter AWS AccessKey : " accessKey
-  read -p -r "Enter AWS SecretKey : " secretKey
-  read -p -r "Enter AWS Session Token : " sessionToken
+  read -r -p "Enter AWS AccessKey : " accessKey
+  read -r -p "Enter AWS SecretKey : " secretKey
+  read -r -p "Enter AWS Session Token : " sessionToken
 
   export AWS_SECRET_ACCESS_KEY=$secretKey
   export AWS_ACCESS_KEY_ID=$accessKey
@@ -24,18 +24,18 @@ else
     echo "valid AWS credentials "
 fi
 
-read -p -r "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
+read -r -p "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
 while [[ ! "$thingName" =~ ^[a-zA-Z0-9_-]+$ ]]; do
   echo "Invalid thing name. Only a-z, A-Z, 0-9, _, - are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
+  read -r -p "[only: a-z, A-Z, 0-9, _, -] Enter the thing name (box id): " thingName
 done
 
-# read -p -r "Enter type of new thing [Server, gate, cam, display] : " thingType
+# read -r -p "Enter type of new thing [Server, gate, cam, display] : " thingType
 thingType=Box
 
-read -p -r "[de, us, at, fr] Enter the lower case 2-digit country code where the box will be located: " thingChildGroup
+read -r -p "[de, us, at, fr] Enter the lower case 2-digit country code where the box will be located: " thingChildGroup
 while [[ ! "$thingChildGroup" =~ ^(de|us|at|fr)$ ]]; do
-  read -p -r "Invalid country code. Please enter de, us, at or fr: " thingChildGroup
+  read -r -p "Invalid country code. Please enter de, us, at or fr: " thingChildGroup
 done
 
 echo "****************************************************************"
@@ -43,30 +43,30 @@ echo "Naming convention for nice names: <2-digit country code in uppercase>_<cit
 echo "*** PLEASE REPLACE DIACRITICS WHEN ENTERING THE ATTRIBUTES ***"
 echo "*** space -> _ | ö -> @oe, Ö -> @Oe | ß -> @ss, é -> @e"
 echo "****************************************************************"
-read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
+read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
 while [[ ! $city =~ ^[a-zA-Z0-9_@.]+$ ]]; do
   echo "Invalid city name. Only a-z, A-Z, 0-9, _, @, . are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
+  read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the city where the unit will be located : " city
 done
-read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
+read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
 while [[ ! $zip =~ ^[a-zA-Z0-9_@.]+$ ]]; do
   echo "Invalid zip code. Only a-z, A-Z, 0-9, _, @, . are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
+  read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the zip code where the unit will be located : " zip
 done
-read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
+read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
 while [[ ! $street =~ ^[a-zA-Z0-9_@.]+$ ]]; do
   echo "Invalid street name. Only a-z, A-Z, 0-9, _ , @, .are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
+  read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the street and house number where the unit will be located : " street
 done
-read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
 while [[ ! $locationname =~ ^[a-zA-Z0-9_@.]+$ ]]; do
   echo "Invalid location name. Only a-z, A-Z, 0-9, _, @, . are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
+  read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the location name (Shopping_Center_Nord, Stadtgalerie)" locationname
 done
-read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
+read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
 while [[ ! $companyname =~ ^[a-zA-Z0-9_@.]+$ ]]; do
   echo "Invalid company name. Only a-z, A-Z, 0-9, _, @, . are allowed."
-  read -p -r "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
+  read -r -p "[only: a-z, A-Z, 0-9, _, @, .] Enter the company name (MyAppCaf@e)" companyname
 done
 
 country="Deutschland"
@@ -94,7 +94,7 @@ if [[ "$thingType" != "Box" ]]; then
 fi
 echo "Registering a new thing as $thingType"
 region=eu-central-1
-read -p -r "Enter the default language [de, en, es]: " language
+read -r -p "Enter the default language [de, en, es]: " language
 {
   echo "REGION=$region"
   echo "TYPE=$thingType"
