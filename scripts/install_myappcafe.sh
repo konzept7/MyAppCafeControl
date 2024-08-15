@@ -101,9 +101,9 @@ fi
 read -s -p "Enter password for user 'pi': " password
 
 # Let user select the time zone
+echo ""
 echo "Please select your timezone:"
 timezones=("Europe/Berlin" "America/New_York" "America/Los_Angeles")
-echo "Please select the desired installation package:"
 select tz in "${timezones[@]}"
 do
   sudo timedatectl set-timezone $tz;
