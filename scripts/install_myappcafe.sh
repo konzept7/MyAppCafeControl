@@ -42,14 +42,14 @@ if [[ "$package" == "Server" ]]; then
     installationPackage="server"
 fi
 if [[ "$package" == "Terminal left" ]]; then
-    myip="192.168.155.25"
+    myip="192.168.155.36"
     serverip="192.168.155.17"
     hostname="TERMINAL-LEFT"
     serverport="5006"
     installationPackage="display"
 fi
 if [[ "$package" == "Terminal right" ]]; then
-    myip="192.168.155.26"
+    myip="192.168.155.37"
     serverip="192.168.155.17"    
     hostname="TERMINAL-RIGHT"
     serverport="5006"
