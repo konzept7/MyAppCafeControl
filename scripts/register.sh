@@ -9,6 +9,7 @@ echo "****************************************************************"
 echo "*** This script needs temporary session tokens for AWS access. "
 echo "*** Please prepare by calling 'aws sts get-session-token'"
 echo "*** from *your* host machine"
+echo "*** USE ADMIN CREDENTIALS!"
 echo "****************************************************************"
 
 
@@ -140,7 +141,10 @@ echo "Converting pem files to pfx"
 openssl pkcs12 -export -in me.cert.pem -inkey me.private.key -out me.cert.pfx -certfile root-CA.crt -passout pass:
 
 echo "copying certificates in certs folder"
-mkdir $srcDir/certs
+if [ ! -d $srcDir/certs ] ; then
+  mkdir $srcDir/certs
+fi
+
 cp me.cert.pem ./certs/me.cert.pem
 cp me.cert.pfx ./certs/me.cert.pfx
 cp root-CA.crt ./certs/root-CA.crt
@@ -180,7 +184,7 @@ aws iot create-role-alias --region "$region" --role-arn arn:aws:iam::31184202429
 
 echo "downloading current solution"
 aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com
-docker-compose pull
+docker compose pull
 
 
 username="$thingName"@myapp.cafe

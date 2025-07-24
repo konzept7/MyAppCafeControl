@@ -136,6 +136,8 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
 fi
 
 if [[ "$installationPackage" == "camera" ]]; then
+    echo "  Deploy cameras with image from iot.myapp.cafe"
+    exit 0
 
     # check if os version codename is buster 
     if [[ $(lsb_release -cs) != "buster" ]]; then
@@ -196,10 +198,14 @@ echo
 echo "  - enabling SSH"
 sudo systemctl enable ssh
 sudo systemctl start ssh
-
-
 echo '-----------------------------------------------------------'
 echo
+
+echo "  - adding convenience functions"
+echo 'alias la="ls -la"' >> /home/pi/.bash_aliases
+echo '-----------------------------------------------------------'
+echo
+
 echo 'Updating pi...'
 sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
 echo '-----------------------------------------------------------'
@@ -213,7 +219,7 @@ if [[ "$installationPackage" != "gate" ]]; then
 
     echo "Installing node..."
     cd /home/pi/
-    curl -sSL https://deb.nodesource.com/setup_14.x | sudo bash -
+    curl -sSL https://deb.nodesource.com/setup_20.x | sudo bash -
     sudo apt install -y nodejs
 
     echo "Installing zip..."
@@ -225,16 +231,20 @@ fi
 
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gate" ]]; then
     echo "Installing docker..."
-    sudo apt-get install apt-transport-https ca-certificates software-properties-common -y
-    curl -fsSL get.docker.com -o get-docker.sh && sh get-docker.sh
+    sudo apt-get install ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
     sudo usermod -aG docker pi
-    sudo curl https://download.docker.com/linux/raspbian/gpg | sudo apt-key add -
-    echo 'deb https://download.docker.com/linux/raspbian/ stretch stable' | sudo tee -a /etc/apt/sources.list
-    sudo apt-get -y update && sudo apt-get -y upgrade
     sudo systemctl start docker.service
 
     if [[ "$installationPackage" == "server" ]]; then
-        
         echo "Downloading MyAppCafeControl"
 
         mkdir /home/pi/srv
@@ -250,23 +260,29 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             mkdir /home/pi/srv/MyAppCafeControl/node_modules
         fi
 
+        echo "Downloading localproxy"
+        if [ ! -d "/home/pi/aws-iot-securetunneling-localproxy/build/bin" ] ; then
+            mkdir -p /home/pi/aws-iot-securetunneling-localproxy/build/bin
+        fi
+        cd /home/pi/aws-iot-securetunneling-localproxy/build/bin/
+        wget https://s3.amazonaws.com/iot.myapp.cafe/public/localproxy_arm64
+        mv localproxy_arm64 localproxy
+        chmod ugo+x localproxy
+        cd /home/pi/srv/MyAppCafeControl
+
         echo "Downloading AWS CRT"
         cd /home/pi/srv/MyAppCafeControl/node_modules/
         wget https://s3.amazonaws.com/iot.myapp.cafe/public/aws-crt.zip
         unzip aws-crt.zip
         rm aws-crt.zip
 
-        echo "Installing docker-compose"
-        sudo apt-get install libffi-dev libssl-dev python3 python3-pip python3-dev python3-bcrypt -y
-        sudo pip3 install docker-compose==1.26.0
-        echo "docker-compose=docker compose" | sudo tee -a /etc/profile.d/aliases.sh
         (crontab -l ; echo "0 4 * * 0 /usr/bin/docker system prune -f")| crontab -
 
-        echo "Installing cmake"
-        sudo apt-get install cmake -y
-
         echo "Installing aws cli"
-        pip3 install awscli --upgrade --user
+        cd /home/pi
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
 
         echo "Installing nmap"
         sudo apt install nmap -y
@@ -285,8 +301,26 @@ fi
 
 # install and set up browser kiosk
 if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "display" ]]; then
+    echo 'Switch from wayland window manager to x11'
+    # Force switch from Wayland to X11 on Raspberry Pi OS
+    XSESSION=LXDE-pi-x
+    XGSESSION=pi-greeter
+
+    sudo sed -i -e "s/^#\?user-session.*/user-session=$XSESSION/" /etc/lightdm/lightdm.conf
+    sudo sed -i -e "s/^#\?autologin-session.*/autologin-session=$XSESSION/" /etc/lightdm/lightdm.conf
+    sudo sed -i -e "s/^#\?greeter-session.*/greeter-session=$XGSESSION/" /etc/lightdm/lightdm.conf
+    sudo sed -i -e "s/^fallback-test.*/#fallback-test=/" /etc/lightdm/lightdm.conf
+    sudo sed -i -e "s/^fallback-session.*/#fallback-session=/" /etc/lightdm/lightdm.conf
+    sudo sed -i -e "s/^fallback-greeter.*/#fallback-greeter=/" /etc/lightdm/lightdm.conf
+
+    if [ -e "/var/lib/AccountsService/users/$USER" ]; then
+        sudo sed -i -e "s/XSession=.*/XSession=$XSESSION/" "/var/lib/AccountsService/users/$USER"
+    fi
+
+
+
     echo 'Installing required software for browser-kiosk...'
-    sudo apt-get -y install chromium-browser unclutter lightdm
+    sudo apt-get install -y chromium lxde lightdm xserver-xorg unclutter-xfixes realvnc-vnc-server
     echo '-----------------------------------------------------------'
     echo
 
@@ -300,17 +334,18 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     fi
 
 
-    echo 'Setting up Xsession file...'
-    echo 'xset s off' > /home/pi/.Xsession
-    echo 'xset -dpms' >> /home/pi/.Xsession
-    echo 'xset s noblank' >> /home/pi/.Xsession
-    echo 'sed -i '"'"'s/"exited_cleanly": false/"exited_cleanly": true/'"'"' /home/pi/.config/chromium/Default/Preferences' >> /home/pi/.Xsession
-    echo 'chromium-browser --noerrdialogs http://'$serverip':'$serverport'/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size='$resolution' --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0' >> /home/pi/.Xsession
+    echo 'Setting up window-session...'
+    sudo systemctl disable lightdm
+    cat > ~/.xinitrc <<EOF
+    xset s off
+    xset -dpms
+    xset s noblank
+    unclutter-xfixes &
+    sed -i 's/"exited_cleanly": false/"exited_cleanly": true/' ~/.config/chromium/Default/Preferences
+    chromium-browser --noerrdialogs http://192.168.155.17:5005/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size=1024x768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0
+EOF
+    echo '[[ -z $DISPLAY && $(tty) = /dev/tty1 ]] && startx' >> ~/.bashrc
 
-    sudo chown pi:pi /home/pi/.Xsession
-
-    echo "Installing VNC"
-    sudo apt install realvnc-vnc-server -y
 
     # boot to desktop
     sudo systemctl set-default graphical.target
@@ -348,92 +383,17 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     fi
 fi
 
-# install and set up camera
-if [[ "$installationPackage" == "camera" ]]; then
-    echo 'bcm2835-v4l2' | sudo tee -a /etc/modules
-
-    # remove old clutter
-    sudo sed /boot/config.txt -i -e "s/^startx/#startx/"
-    sudo sed /boot/config.txt -i -e "s/^fixup_file/#fixup_file/"
-    sudo sed /boot/config.txt -i -e "s/^\(#\|\)start_x=.*//"
-    sudo sed /boot/config.txt -i -e "s/^\(#\|\)gpu_mem=.*//"
-
-    # add new clutter :)
-    echo 'start_x=1' | sudo tee -a /boot/config.txt
-    echo 'gpu_mem=128' | sudo tee -a /boot/config.txt
-
-    sudo apt install -y byacc flex
-    sudo apt install -y openjdk-8-jdk
-    sudo apt install -y cmake
-    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-armhf/
-
-    cd /home/pi/
-    git clone --recursive https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
-    mkdir -p amazon-kinesis-video-streams-producer-sdk-cpp/build
-    cd amazon-kinesis-video-streams-producer-sdk-cpp/build
-    cmake .. -BUILD_GSTREAMER_PLUGIN=ON -DBUILD_JNI=TRUE
-    sudo apt-get install libssl-dev libcurl4-openssl-dev liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools gstreamer1.0-omx -y
-    make
-    cd ..
-    export GST_PLUGIN_PATH=$(pwd)/build
-    export LD_LIBRARY_PATH=$(pwd)/open-source/local/lib
-
-    cd /home/pi/amazon-kinesis-video-streams-producer-sdk-cpp
-    export GST_PLUGIN_PATH=$(pwd)build
-
-    echo 'export GST_PLUGIN_PATH=$PATH:/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | sudo tee -a /home/.profile
-
-    echo 'Setting up service for cam-autostart'
-    # create shell script to launch cam
-    echo '#!/bin/bash' | tee /home/pi/launch-cam.sh
-    echo 'export GST_PLUGIN_PATH=/home/pi/amazon-kinesis-video-streams-producer-sdk-cpp/build' | tee -a /home/pi/launch-cam.sh
-    echo 'gst-launch-1.0 v4l2src do-timestamp=TRUE device=/dev/video0 ! videobalance saturation=0.0 ! clockoverlay time-format="%D %H:%M:%S" halignment=right font-desc="Sans, 16" ! videoconvert ! video/x-raw,18rmat=I420,width=532,height=400,framerate=15/1 ! v4l2h264enc control-rate=1 target-bitrate=512000 periodicity-idr=45 inline-header=FALSE ! h264parse ! video/x-h264,stream-format=avc,alignment=au,width=532,height=400,framerate=15/1,profile=baseline ! kvssink stream-name="'$streamname'" access-key="'$awsaccess'" secret-key="'$awssecret'" aws-region="'$awsregion'"' | tee -a /home/pi/launch-cam.sh
-    chmod ugo+x /home/pi/launch-cam.sh
-
-    # create script file
-    cd /home/pi/
-    sudo rm myappcafecamera.service
-    echo '[Unit]' | sudo tee -a myappcafecamera.service
-    echo 'Description=MyAppCafeCamera' | sudo tee -a myappcafecamera.service
-    echo 'After=network.target' | sudo tee -a myappcafecamera.service
-    echo '' | sudo tee -a myappcafecamera.service
-    echo '[Service]' | sudo tee -a myappcafecamera.service
-    echo 'ExecStart=/home/pi/launch-cam.sh' | sudo tee -a myappcafecamera.service
-    echo 'WorkingDirectory=/home/pi/' | sudo tee -a myappcafecamera.service
-    echo 'StandardOutput=inherit' | sudo tee -a myappcafecamera.service
-    echo 'StandardError=inherit' | sudo tee -a myappcafecamera.service
-    echo 'Restart=always' | sudo tee -a myappcafecamera.service
-    echo 'User=pi' | sudo tee -a myappcafecamera.service
-    echo 'Group=pi' | sudo tee -a myappcafecamera.service
-    echo '' | sudo tee -a myappcafecamera.service
-    echo '[Install]' | sudo tee -a myappcafecamera.service
-    echo 'WantedBy=multi-user.target' | sudo tee -a myappcafecamera.service
-
-    # reload services and start service
-    sudo mv myappcafecamera.service /etc/systemd/system/myappcafecamera.service
-    sudo systemctl daemon-reload
-    sudo systemctl enable myappcafecamera.service
-    sudo systemctl start myappcafecamera.service
-fi
 
 routerip="192.168.155.1"
 touch /home/pi/set-ip.sh
 cat > /home/pi/set-ip.sh << EOF
-    sudo mv /etc/dhcpcd.conf /etc/dhcpcd.conf.bak
-    sudo touch /etc/dhcpcd.conf
-    sudo chmod 777 /etc/dhcpcd.conf
-    
-    echo "hostname" >> /etc/dhcpcd.conf
-    echo "clientid" >> /etc/dhcpcd.conf
-    echo "persistent" >> /etc/dhcpcd.conf
-    echo "require dhcp_server_identifier" >> /etc/dhcpcd.conf
-    echo "slaac private" >> /etc/dhcpcd.conf
-    echo "interface eth0" >> /etc/dhcpcd.conf
-    echo "option interface" >> /etc/dhcpcd.conf
-    echo "static ip_address=$myip" >> /etc/dhcpcd.conf
-    echo "static routers=$routerip" >> /etc/dhcpcd.conf
-    echo "static domain_name_servers=$routerip" >> /etc/dhcpcd.conf
+    sudo nmcli con mod "Wired connection 1" ipv4.addresses $myip/24
+    sudo nmcli con mod "Wired connection 1" ipv4.gateway $routerip
+    sudo nmcli con mod "Wired connection 1" ipv4.dns "9.9.9.9"
+    sudo nmcli con mod "Wired connection 1" ipv4.method manual
+    sudo nmcli con down "Wired connection 1" && sudo nmcli con up "Wired connection 1" && sudo reboot
 EOF
+cd /home/pi/
 sudo chmod +x set-ip.sh
 
 echo
