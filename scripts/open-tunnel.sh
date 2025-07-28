@@ -14,6 +14,6 @@ if [ -e  ]
 
 aws iotsecuretunneling open-tunnel --destination-config thingName=$thingName,services=SSH --timeout-config maxLifetimeTimeoutMinutes=$timeOut | echo $message | destinationToken=$(jq '.destinationAccessToken')
 echo connecting with destination token $destinationToken
-nohup ./localproxy -r $REGION -s 18022 -t $destinationToken &>tunnel.log
+nohup ./localproxy -r $REGION -s 18022 -t $destinationToken --destination-client-type V1 &>tunnel.log
 sleep 120
 ssh pi@localhost -p 18022
