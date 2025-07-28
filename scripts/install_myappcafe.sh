@@ -342,7 +342,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "dis
     xset s noblank
     unclutter-xfixes &
     sed -i 's/"exited_cleanly": false/"exited_cleanly": true/' ~/.config/chromium/Default/Preferences
-    chromium-browser --noerrdialogs http://192.168.155.17:5005/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size=1024x768 --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0
+    chromium-browser --noerrdialogs http://192.168.155.17:$serverport/ --incognito --kiosk --start-fullscreen --disable-translate --disable-features=Translate --window-size=$resolution --window-position=0,0 --check-for-update-interval=604800 --disable-pinch --overscroll-history-navigation=0
 EOF
     echo '[[ -z $DISPLAY && $(tty) = /dev/tty1 ]] && startx' >> ~/.bashrc
 
