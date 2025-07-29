@@ -258,8 +258,7 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         fi
 
         # fast-forward once-scripts
-        cd /home/pi/srv/MyAppCafeControl
-        echo 9 > /scripts/version_flag
+        echo 9 > /home/pi/srv/MyAppCafeControl/scripts/version_flag
 
         if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
             mkdir /home/pi/srv/MyAppCafeControl/node_modules
