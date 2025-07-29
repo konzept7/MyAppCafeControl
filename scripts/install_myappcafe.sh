@@ -219,7 +219,7 @@ if [[ "$installationPackage" != "gate" ]]; then
 
     echo "Installing node..."
     cd /home/pi/
-    curl -sSL https://deb.nodesource.com/setup_22.x | sudo bash -
+    curl -sSL https://deb.nodesource.com/setup_20.x | sudo bash -
     sudo apt install -y nodejs
 
     echo "Installing zip..."
@@ -253,9 +253,9 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             git clone https://github.com/konzept7/MyAppCafeControl
         else
             cd /home/pi/srv/MyAppCafeControl
-            git checkout 64bit
-            git pull origin 64bit
         fi
+        git checkout 64bit
+        git pull origin 64bit
 
         # fast-forward once-scripts
         echo 9 > /home/pi/srv/MyAppCafeControl/scripts/version_flag
