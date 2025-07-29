@@ -257,6 +257,10 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             git pull origin 64bit
         fi
 
+        # fast-forward once-scripts
+        cd /home/pi/srv/MyAppCafeControl
+        echo 9 > /scripts/version_flag
+
         if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
             mkdir /home/pi/srv/MyAppCafeControl/node_modules
         fi
