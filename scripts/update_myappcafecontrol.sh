@@ -52,7 +52,7 @@ chmod +x $workdir/scripts/once.sh
 /home/pi/srv/MyAppCafeControl/scripts/once.sh >> /home/pi/srv/MyAppCafeControl/scripts/once.log
 
 echo "$(date) Checking for changes in remote repository..."
-git fetch origin
+git fetch origin 64bit
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse @{u})
 
@@ -70,7 +70,7 @@ sudo systemctl stop myappcafecontrol.service
 cd $workdir || exit
 echo "$(date) Pulling current version..."
 git checkout .
-git pull origin master
+git pull origin 64bit
 
 # Check if package.json has changed
 if ! git diff --quiet HEAD package.json; then
