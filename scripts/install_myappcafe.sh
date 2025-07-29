@@ -253,7 +253,8 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             git clone https://github.com/konzept7/MyAppCafeControl
         else
             cd /home/pi/srv/MyAppCafeControl
-            git pull
+            git checkout 64bit
+            git pull origin 64bit
         fi
 
         if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
