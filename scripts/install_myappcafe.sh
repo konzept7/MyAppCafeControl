@@ -219,7 +219,7 @@ if [[ "$installationPackage" != "gate" ]]; then
 
     echo "Installing node..."
     cd /home/pi/
-    curl -sSL https://deb.nodesource.com/setup_20.x | sudo bash -
+    curl -sSL https://deb.nodesource.com/setup_22.x | sudo bash -
     sudo apt install -y nodejs
 
     echo "Installing zip..."
