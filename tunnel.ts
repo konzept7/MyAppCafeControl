@@ -56,6 +56,8 @@ class Tunnel {
           this._services.map((s) => s + "=" + TunnelServices[s]).join(","),
           "-t",
           this._token,
+          "--destination-client-type",
+          "V1"
         ]);
         localProxyProcess.on("error", (e: Error) => {
           error("error from localproxy execution", e);
