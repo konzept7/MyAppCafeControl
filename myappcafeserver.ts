@@ -619,6 +619,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (operation === "upload-logs") {
         return await this.uploadLogsHandler(job);
       }
+      
+      if (operation === "product-change") {
+        return await this.productChangeHandler(job);
+      }
 
       warn("unknown command sent to handler", job.jobDocument);
       const fail = job.Fail("unknownOperation", "AXXXX");
@@ -2472,6 +2476,28 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       log("update successful");
       resolve("all images updated successfully");
     });
+  }
+
+  async productChangeHandler(job: Job) {
+    log("got request to change product", job);
+    return new Promise(async (resolve, reject) => {
+    const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`;
+    log("triggering config reload", reloadUrl);
+    try {
+      await axios.post(reloadUrl);
+        jobUpdate(job.jobId, job.Progress(0.5, "reloadedConfig"), this._thingName, this._connection);
+        await axios.post(this._url + "product/reload");
+        jobUpdate(job.jobId, job.Progress(0.7, "serverReloaded"), this._thingName, this._connection);
+    } catch (error) {
+      warn("error reloading config", error);
+      const fail = job.Fail("notPossible", "AXXXX");
+      jobUpdate(job.jobId, fail, this._thingName, this._connection);
+      reject("unable to change product\n" + error);
+      return;
+    }
+    jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+    resolve("product changed successfully");
+  });
   }
 }
 
