@@ -112,7 +112,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     initialState.reported = ServerState.closed;
     this.containers = [];
     this.images = [];
-    this.shadow = new ServerShadow(connection, initialState);
+    this.shadow = new ServerShadow(connection, thingName, initialState);
     this._stateConnection = new signalR.HubConnectionBuilder()
       .withUrl(this._stateHubUrl)
       .withAutomaticReconnect({
