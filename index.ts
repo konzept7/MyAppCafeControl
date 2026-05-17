@@ -111,6 +111,13 @@ if (process.env.PLATFORM != "x86" && (localproxyPath === "" || !existsSync(path.
 // decoder for binary arrays
 const decoder = new TextDecoder('utf8');
 
+// MQTT activity watchdog. Refreshed by every incoming message handler and by the
+// periodic heartbeat publish below. If nothing touches it for WATCHDOG_MS, we
+// assume the message loop is wedged (SDK thinks it is connected but no traffic
+// flows, or our handlers stopped running) and exit so systemd restarts us.
+let lastMqttActivityAt = Date.now();
+const noteMqttActivity = () => { lastMqttActivityAt = Date.now(); };
+
 async function execute_session(connection: mqtt.MqttClientConnection, program: ControllableProgram) {
    return new Promise(async (resolve, reject) => {
 
@@ -125,6 +132,7 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
 
       try {
          const on_job = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+            noteMqttActivity();
             const json = decoder.decode(payload);
             log(`Job received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
             const execution = (JSON.parse(json)).execution;
@@ -139,6 +147,7 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
          }
 
          const on_running_jobs = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+            noteMqttActivity();
             const json = decoder.decode(payload);
             log(`Running jobs received. topic:"${topic}"`);
             const inProgressJobs = (JSON.parse(json)).inProgressJobs;
@@ -170,12 +179,14 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
          }
 
          const on_shadow = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+            noteMqttActivity();
             const json = decoder.decode(payload);
             log(`Shadow received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
             log(json);
          }
 
          const on_tunnel = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+            noteMqttActivity();
             const tunnelAttributes = decoder.decode(payload);
             const json = JSON.parse(tunnelAttributes);
             log(`Tunnel notification received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
@@ -248,9 +259,44 @@ const connection = client.new_connection(config);
 //    connection.publish(topic, json, mqtt.QoS.AtLeastOnce, false);
 // }
 
+// MQTT activity watchdog parameters.
+//
+// Heartbeat: every HEARTBEAT_INTERVAL_MS we publish to our own shadow/get topic
+// (which the device's IoT policy already permits, and which generates an
+// inbound response on shadow/get/accepted). This exercises both publish and
+// receive paths, so the watchdog sees activity even on completely idle boxes.
+//
+// Watchdog: every WATCHDOG_CHECK_INTERVAL_MS we check whether anything has
+// touched lastMqttActivityAt within WATCHDOG_THRESHOLD_MS. If not, we
+// process.exit() so systemd restarts the unit. This is the single most
+// important defense against "box is up but no longer processes jobs" - even
+// if every other recovery mechanism fails, the box will recover on its own.
+const HEARTBEAT_INTERVAL_MS = 60 * 1000;
+const WATCHDOG_CHECK_INTERVAL_MS = 30 * 1000;
+const WATCHDOG_THRESHOLD_MS = 10 * 60 * 1000;
+
 // connects to aws iot and retries after 10 seconds on error
 (async () => {
    await connection.connect()
+   noteMqttActivity();
+
+   const heartbeatTopic = shadowTopic(thingName) + ShadowSubtopic.GET;
+   setInterval(async () => {
+      try {
+         await connection.publish(heartbeatTopic, '', mqtt.QoS.AtLeastOnce, false);
+         noteMqttActivity();
+      } catch (err) {
+         error('heartbeat publish failed', err);
+      }
+   }, HEARTBEAT_INTERVAL_MS);
+
+   setInterval(() => {
+      const idleMs = Date.now() - lastMqttActivityAt;
+      if (idleMs > WATCHDOG_THRESHOLD_MS) {
+         error(`mqtt watchdog: no activity for ${Math.round(idleMs / 1000)}s (>${WATCHDOG_THRESHOLD_MS / 1000}s), exiting so systemd can restart`);
+         process.exit(4);
+      }
+   }, WATCHDOG_CHECK_INTERVAL_MS);
 
    // let program: ControllableProgram;
 
