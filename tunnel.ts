@@ -3,8 +3,11 @@
 // ********************************************
 
 import { exec, spawn } from "child_process";
+import { promisify } from "util";
 import path from "path";
 import { log, warn, error } from "./log";
+
+const execAsync = promisify(exec);
 
 function tunnelTopic(thingName: string) {
   // handles the mqtt connection
@@ -42,12 +45,18 @@ class Tunnel {
 
   public isOpen: boolean = false;
 
-  async open() {
-    return new Promise((resolve, reject) => {
+  async open(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
       const proxyPath = path.join(
         process.env.LOCALPROXY_PATH || "",
         "localproxy"
       );
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        fn();
+      };
       try {
         const localProxyProcess = spawn(proxyPath, [
           "-r",
@@ -59,30 +68,35 @@ class Tunnel {
         ]);
         localProxyProcess.on("error", (e: Error) => {
           error("error from localproxy execution", e);
-          reject;
-        });
-        localProxyProcess.on("close", (e: Error) =>
-          warn("local proxy closed", e)
-        );
-        localProxyProcess.stderr.on("data", (data: any) => {
-          warn("tunnel has been closed", Buffer.from(data).toString());
           this.isOpen = false;
+          settle(() => reject(e));
+        });
+        localProxyProcess.on("close", (code) => {
+          warn("local proxy closed", code);
+          this.isOpen = false;
+          settle(() => reject(new Error("local proxy exited with code " + code)));
+        });
+        localProxyProcess.stderr.on("data", (data: any) => {
+          warn("tunnel stderr", Buffer.from(data).toString());
         });
         localProxyProcess.stdout.on("data", (data: any) => {
           log("received tunnel data", Buffer.from(data).toString());
         });
+        this.isOpen = true;
+        settle(() => resolve());
       } catch (err) {
         error("error spawning tunnel command", { proxyPath, err });
         this.isOpen = false;
-        reject(err);
-        return;
+        settle(() => reject(err));
       }
-      this.isOpen = true;
-      resolve;
     });
   }
-  stop() {
-    exec("sudo pkill localproxy");
+  async stop(): Promise<void> {
+    try {
+      await execAsync("sudo pkill localproxy");
+    } catch (err) {
+      warn("pkill localproxy returned non-zero (may not be running)", err);
+    }
     this.isOpen = false;
   }
 }
