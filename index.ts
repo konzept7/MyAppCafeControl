@@ -22,6 +22,19 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 dotenv.config();
 
+// Fail fast on unhandled errors. Anything that escapes here would otherwise leave
+// the process running in an undefined state, which on these boxes manifests as
+// "still up, but no longer processes MQTT jobs". Better to exit and let systemd
+// restart the unit than to silently degrade.
+process.on('unhandledRejection', (reason) => {
+   error('unhandledRejection - exiting so systemd can restart', reason);
+   process.exit(2);
+});
+process.on('uncaughtException', (err) => {
+   error('uncaughtException - exiting so systemd can restart', err);
+   process.exit(3);
+});
+
 
 // ********************************************
 // *** CHECK SETUP
@@ -211,6 +224,13 @@ config_builder.with_clean_session(false);
 config_builder.with_client_id(clientId)
 log(endpoint)
 config_builder.with_endpoint(endpoint)
+// Without an MQTT keepalive, idle TCP connections sitting behind consumer routers
+// /CGNAT get silently dropped after a few minutes and the SDK never emits a
+// disconnect. The session then waits forever for messages that will never arrive.
+// 30s keepalive + 10s ping timeout means we detect a dead socket within ~40s,
+// the SDK emits disconnect/error, and the outer reconnect loop runs.
+config_builder.with_keep_alive_seconds(30)
+config_builder.with_ping_timeout_ms(10 * 1000)
 
 // force node to wait 60 seconds before killing itself, promises do not keep node alive
 setTimeout(() => { }, 60 * 1000);
