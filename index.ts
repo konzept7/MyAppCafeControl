@@ -103,7 +103,7 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
 
       connection.on('error', (err) => {
          error('error on mqtt connection, trying to reconnect', err);
-         reject();
+         reject(err);
       });
 
       connection.on('disconnect', () => {
@@ -168,7 +168,11 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             log(`Tunnel notification received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
             log('received tunnel ');
             const tunnel = new Tunnel(region, json.services, json.clientAccessToken)
-            program.handleTunnel(tunnel);
+            try {
+               await program.handleTunnel(tunnel);
+            } catch (err) {
+               error('program could not handle tunnel', err);
+            }
          }
 
          const jobTopic = baseJobTopic(thingName);
@@ -239,7 +243,11 @@ const connection = client.new_connection(config);
    } catch (err) {
       error('error while preparing myappcafeserver', err)
    }
-   myappcafeserver.connect();
+   try {
+      await myappcafeserver.connect();
+   } catch (err) {
+      error('error while connecting to myappcafeserver signalR hubs', err)
+   }
    myappcafeserver.on('change', (newState: ServerState) => {
       log('received state change from server, reporting shadow change')
       const state = new ServerShadowState();
