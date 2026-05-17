@@ -215,22 +215,38 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             }
          }
 
-         const jobTopic = baseJobTopic(thingName);
-         await connection.subscribe(jobTopic + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
-         await connection.subscribe(jobTopic + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
-         await connection.subscribe(jobTopic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_running_jobs)
-         connection.publish(jobTopic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+         const subscribe_all = async () => {
+            const jobTopic = baseJobTopic(thingName);
+            await connection.subscribe(jobTopic + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
+            await connection.subscribe(jobTopic + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
+            await connection.subscribe(jobTopic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_running_jobs)
+            await connection.publish(jobTopic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
 
-         const myShadowTopic = shadowTopic(thingName);
-         await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
-         await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
-         await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_DELTA, mqtt.QoS.AtLeastOnce, on_shadow)
-         await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
-         await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
-         // publish an empty shadow to get the current shadow
-         connection.publish(myShadowTopic + 'get', '', mqtt.QoS.AtLeastOnce, false);
-         const myTunnelTopic = tunnelTopic(thingName);
-         await connection.subscribe(myTunnelTopic, mqtt.QoS.AtLeastOnce, on_tunnel)
+            const myShadowTopic = shadowTopic(thingName);
+            await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
+            await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
+            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_DELTA, mqtt.QoS.AtLeastOnce, on_shadow)
+            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
+            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
+            await connection.publish(myShadowTopic + ShadowSubtopic.GET, '', mqtt.QoS.AtLeastOnce, false);
+
+            const myTunnelTopic = tunnelTopic(thingName);
+            await connection.subscribe(myTunnelTopic, mqtt.QoS.AtLeastOnce, on_tunnel)
+         };
+
+         // On a transient SDK-level reconnect, the broker may or may not have
+         // retained subscriptions. Re-subscribing on every resume is idempotent
+         // and cheap; not re-subscribing means a silently-dead session.
+         connection.on('interrupt', (err) => {
+            log('mqtt connection interrupted, awaiting resume', err)
+         });
+         connection.on('resume', (returnCode, sessionPresent) => {
+            log(`mqtt connection resumed (rc=${returnCode}, sessionPresent=${sessionPresent}), re-subscribing`)
+            noteMqttActivity();
+            subscribe_all().catch((err) => error('failed to re-subscribe after resume', err));
+         });
+
+         await subscribe_all();
 
       } catch (err) {
          error('error while executing session', err)
