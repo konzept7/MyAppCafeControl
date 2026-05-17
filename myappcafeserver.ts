@@ -1,6 +1,21 @@
 const REDIS_HOST = "localhost";
 const REDIS_PORT = 6379;
 
+// IORedis defaults: connectTimeout 10s, maxRetriesPerRequest 20, no per-command
+// timeout, offline queueing enabled. On a wedged or unreachable local Redis,
+// commands sit in the offline queue and resolve eventually (or never) - which
+// blocks the calling job handler. Use conservative settings so a Redis problem
+// fails the affected job within a few seconds instead of hanging it. Local
+// Redis on the same box should respond in well under 1s; 5s is generous.
+function createRedisClient(): any {
+  return new Redis(REDIS_PORT, REDIS_HOST, {
+    connectTimeout: 5000,
+    commandTimeout: 5000,
+    maxRetriesPerRequest: 3,
+    enableOfflineQueue: false,
+  });
+}
+
 import { ControllableProgram } from "./controllableProgram";
 import EventEmitter from "events";
 import axios from "axios";
@@ -982,7 +997,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       await client.del("isMoving");
       await client.del("unrecoverable");
       jobUpdate(
@@ -1567,7 +1582,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.9, "removingKeys"),
@@ -2241,7 +2256,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.4, "removingKeys"),
