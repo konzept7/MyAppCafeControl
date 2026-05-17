@@ -354,26 +354,23 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     );
   }
 
-  async connect() {
-    return new Promise(async (resolve) => {
-      while (!this._stateConnection || this.state === ServerState.closed) {
-        this._stateConnection
-          .start({
-            withCredentials: false,
-          })
-          .then(() => {
-            log("connected to signalR");
-            resolve("connected to state hub");
-            return;
-          })
-          .catch((err: any) => {
-            this.state = ServerState.closed;
-            error("error starting connection to server", err);
-          });
-        // wait for 15 seconds before trying to connect again
+  async connect(maxAttempts: number = 8): Promise<string> {
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        await this._stateConnection.start({ withCredentials: false });
+        log("connected to signalR");
+        return "connected to state hub";
+      } catch (err) {
+        this.state = ServerState.closed;
+        error(`error starting connection to server (attempt ${attempt}/${maxAttempts})`, err);
+        if (attempt >= maxAttempts) {
+          throw new Error(`signalR connect failed after ${maxAttempts} attempts: ${err}`);
+        }
         await sleep(15 * 1000);
       }
-    });
+    }
   }
   async startContainers(images: Array<string>) {
     log("starting containers as requested", images);
@@ -425,8 +422,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   waitOnce(event: string, timeout: number) {
     return new Promise((resolve, reject) => {
-      setTimeout(reject, timeout);
-      this.once(event, () => resolve);
+      const listener = (...args: any[]) => {
+        clearTimeout(timer);
+        resolve(args[0]);
+      };
+      const timer = setTimeout(() => {
+        this.removeListener(event, listener);
+        reject(new Error(`timed out after ${timeout}ms waiting for event '${event}'`));
+      }, timeout);
+      this.once(event, listener);
     });
   }
 
