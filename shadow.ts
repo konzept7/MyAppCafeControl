@@ -42,13 +42,15 @@ interface IShadow {
 class ServerShadow extends EventEmitter implements IShadow {
   private _state!: IShadowState;
   private connection!: mqtt.MqttClientConnection;
+  private _thingName: string;
   metadata: any | undefined;
   version!: number;
   timestamp!: number;
 
-  constructor(connection: mqtt.MqttClientConnection, initialState: IShadowState) {
+  constructor(connection: mqtt.MqttClientConnection, thingName: string, initialState: IShadowState) {
     super();
     this.connection = connection;
+    this._thingName = thingName;
     this._state = initialState;
   }
 
@@ -61,11 +63,9 @@ class ServerShadow extends EventEmitter implements IShadow {
     this._state.reported = newState;
     this.emit('reportedShadowChange');
     if (this.connection) {
-      const newShadow = new ServerShadowState();
-      newShadow.reported = this._state.reported;
       const json = JSON.stringify({ state: { reported: { serverState: newState } } });
       console.log('reporting new shadow change', json)
-      this.connection.publish(shadowTopic + ShadowSubtopic.UPDATE, json, mqtt.QoS.AtLeastOnce, false)
+      this.connection.publish(shadowTopic(this._thingName) + ShadowSubtopic.UPDATE, json, mqtt.QoS.AtLeastOnce, false)
     } else {
       throw new Error('no valid connection to send current shadow state');
     }

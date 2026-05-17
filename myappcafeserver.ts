@@ -1,6 +1,21 @@
 const REDIS_HOST = "localhost";
 const REDIS_PORT = 6379;
 
+// IORedis defaults: connectTimeout 10s, maxRetriesPerRequest 20, no per-command
+// timeout, offline queueing enabled. On a wedged or unreachable local Redis,
+// commands sit in the offline queue and resolve eventually (or never) - which
+// blocks the calling job handler. Use conservative settings so a Redis problem
+// fails the affected job within a few seconds instead of hanging it. Local
+// Redis on the same box should respond in well under 1s; 5s is generous.
+function createRedisClient(): any {
+  return new Redis(REDIS_PORT, REDIS_HOST, {
+    connectTimeout: 5000,
+    commandTimeout: 5000,
+    maxRetriesPerRequest: 3,
+    enableOfflineQueue: false,
+  });
+}
+
 import { ControllableProgram } from "./controllableProgram";
 import EventEmitter from "events";
 import axios from "axios";
@@ -112,7 +127,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     initialState.reported = ServerState.closed;
     this.containers = [];
     this.images = [];
-    this.shadow = new ServerShadow(connection, initialState);
+    this.shadow = new ServerShadow(connection, thingName, initialState);
     this._stateConnection = new signalR.HubConnectionBuilder()
       .withUrl(this._stateHubUrl)
       .withAutomaticReconnect({
@@ -354,26 +369,23 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     );
   }
 
-  async connect() {
-    return new Promise(async (resolve) => {
-      while (!this._stateConnection || this.state === ServerState.closed) {
-        this._stateConnection
-          .start({
-            withCredentials: false,
-          })
-          .then(() => {
-            log("connected to signalR");
-            resolve("connected to state hub");
-            return;
-          })
-          .catch((err: any) => {
-            this.state = ServerState.closed;
-            error("error starting connection to server", err);
-          });
-        // wait for 15 seconds before trying to connect again
+  async connect(maxAttempts: number = 8): Promise<string> {
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        await this._stateConnection.start({ withCredentials: false });
+        log("connected to signalR");
+        return "connected to state hub";
+      } catch (err) {
+        this.state = ServerState.closed;
+        error(`error starting connection to server (attempt ${attempt}/${maxAttempts})`, err);
+        if (attempt >= maxAttempts) {
+          throw new Error(`signalR connect failed after ${maxAttempts} attempts: ${err}`);
+        }
         await sleep(15 * 1000);
       }
-    });
+    }
   }
   async startContainers(images: Array<string>) {
     log("starting containers as requested", images);
@@ -425,8 +437,51 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   waitOnce(event: string, timeout: number) {
     return new Promise((resolve, reject) => {
-      setTimeout(reject, timeout);
-      this.once(event, () => resolve);
+      const listener = (...args: any[]) => {
+        clearTimeout(timer);
+        resolve(args[0]);
+      };
+      const timer = setTimeout(() => {
+        this.removeListener(event, listener);
+        reject(new Error(`timed out after ${timeout}ms waiting for event '${event}'`));
+      }, timeout);
+      this.once(event, listener);
+    });
+  }
+
+  // Wait for a ServerEvents.change event whose new state satisfies a predicate.
+  // The original pattern used `this.on(ServerEvents.change, ...)` directly inside
+  // a `new Promise()`, with no cleanup on resolve/reject and no timeout - every
+  // call leaked one listener forever, and a state that never arrived would
+  // block the calling job handler indefinitely. This helper centralizes the
+  // listener+timer lifecycle so callers cannot forget either.
+  //
+  // The decide callback returns:
+  //   'resolve'     - settle the promise with this state
+  //   'reject'      - settle the promise with a rejection
+  //   'keep-waiting' - ignore this state, keep listening
+  waitForStateChange(
+    decide: (newState: ServerState) => 'resolve' | 'reject' | 'keep-waiting',
+    timeoutMs: number,
+    label: string
+  ): Promise<ServerState> {
+    return new Promise<ServerState>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.removeListener(ServerEvents.change, listener);
+      };
+      const listener = (newValue: ServerState) => {
+        const outcome = decide(newValue);
+        if (outcome === 'keep-waiting') return;
+        cleanup();
+        if (outcome === 'resolve') resolve(newValue);
+        else reject(new Error(`${label}: rejected on state '${newValue}'`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`${label}: timed out after ${timeoutMs}ms (last state '${this.state}')`));
+      }, timeoutMs);
+      this.on(ServerEvents.change, listener);
     });
   }
 
@@ -978,7 +1033,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       await client.del("isMoving");
       await client.del("unrecoverable");
       jobUpdate(
@@ -1391,27 +1446,25 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async shutdownGracefully(inSeconds: number) {
     if (!inSeconds) inSeconds = 10;
     log("stopping server if not already closed", this.state);
-    return new Promise(async (resolve, reject) => {
-      if (this.state !== "closed") {
-        try {
-          await axios.post(
-            this._url + "init/shutdown/" + Math.floor(inSeconds),
-            undefined,
-            { timeout: 10 * 1000 }
-          );
-        } catch (err) {
-          error("error shutting down application", err);
-          reject(err);
-        }
-        log("scheduled server shutdown in " + inSeconds + " seconds");
-        this.on(ServerEvents.change, (newValue) => {
-          if (newValue === "closed") resolve("server is shut down");
-        });
-      } else {
-        log("server was already shut down");
-        resolve("server is shut down");
-      }
-    });
+    if (this.state === ServerState.closed) {
+      log("server was already shut down");
+      return "server is shut down";
+    }
+    await axios.post(
+      this._url + "init/shutdown/" + Math.floor(inSeconds),
+      undefined,
+      { timeout: 10 * 1000 }
+    );
+    log("scheduled server shutdown in " + inSeconds + " seconds");
+    // Wait up to (inSeconds + 2 minutes) for the server to actually reach
+    // 'closed'. The original implementation had no timeout at all and leaked
+    // its state-change listener every call.
+    await this.waitForStateChange(
+      (s) => (s === ServerState.closed ? 'resolve' : 'keep-waiting'),
+      (inSeconds + 120) * 1000,
+      'shutdownGracefully'
+    );
+    return "server is shut down";
   }
 
   // ********************************************
@@ -1563,7 +1616,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.9, "removingKeys"),
@@ -1741,34 +1794,30 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           return;
         }
 
-        this.on(ServerEvents.change, (newValue) => {
-          if (newValue === ServerState.Paused) {
-            jobUpdate(
-              job.jobId,
-              job.Succeed("success"),
-              this._thingName,
-              this._connection
-            );
+        // Listen for the state to reach Paused (success) or change to anything
+        // other than Pausing (failure). Use the helper so we can't leak this
+        // listener if the wait never completes. 10 minutes is generous - the
+        // soft path may have to wait for orders to finish first.
+        const pausedWatcher = this.waitForStateChange(
+          (newValue) => {
+            if (newValue === ServerState.Paused) return 'resolve';
+            if (newValue !== ServerState.Pausing && this.state !== newValue) return 'reject';
+            return 'keep-waiting';
+          },
+          10 * 60 * 1000,
+          'pauseHandler'
+        );
+        pausedWatcher.then(
+          () => {
+            jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
             resolve(true);
-            return;
+          },
+          (err) => {
+            warn("pause was requested, but server transitioned away", err);
+            jobUpdate(job.jobId, job.Fail("wrongStateResult", "AXXXX"), this._thingName, this._connection);
+            reject(err);
           }
-
-          if (newValue !== ServerState.Pausing && this.state !== newValue) {
-            warn(
-              "pause was requested, but server is going to state " + newValue
-            );
-            jobUpdate(
-              job.jobId,
-              job.Fail("wrongStateResult", "AXXXX"),
-              this._thingName,
-              this._connection
-            );
-            reject(
-              "pause was requested, but server is going to state " + newValue
-            );
-            return;
-          }
-        });
+        );
 
         if (this.state === ServerState.Okay) {
           try {
@@ -2237,7 +2286,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      const client = new Redis(REDIS_PORT, REDIS_HOST);
+      const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.4, "removingKeys"),
