@@ -8,6 +8,15 @@ const cors = require('cors');
 import { mqtt, io, iot } from 'aws-iot-device-sdk-v2';
 import { access } from 'fs/promises';
 import { constants, existsSync } from 'fs';
+import axios from 'axios';
+
+// Global axios default. Per-call configs override this, so existing calls that
+// explicitly request 1s/10s/30s/60s/120s timeouts keep their values. The only
+// effect of this line is to give every *un-configured* axios call (~20 of them
+// across myappcafeserver.ts, e.g. axios.post(url) with no options) a finite
+// timeout instead of axios's no-timeout-by-default behavior. Without this, a
+// wedged local container hangs the calling job handler forever.
+axios.defaults.timeout = 60 * 1000;
 
 import { baseJobTopic, Job, JOBTOPICS } from './job'
 import { shadowTopic, ShadowSubtopic, ServerShadowState } from './shadow'
