@@ -11,7 +11,7 @@ import { constants, existsSync } from 'fs';
 
 import { baseJobTopic, Job, JOBTOPICS } from './job'
 import { shadowTopic, ShadowSubtopic, ServerShadowState } from './shadow'
-import { sleep } from './common'
+import { sleep, withTimeout } from './common'
 import { ControllableProgram } from './controllableProgram';
 import { Tunnel, tunnelTopic } from './tunnel';
 import { Myappcafeserver, ServerState } from './myappcafeserver'
@@ -118,6 +118,14 @@ const decoder = new TextDecoder('utf8');
 let lastMqttActivityAt = Date.now();
 const noteMqttActivity = () => { lastMqttActivityAt = Date.now(); };
 
+// Per-message timeouts. Even though handleJob can legitimately do slow things
+// (waiting for orders to finish, container restarts), nothing should be allowed
+// to block the MQTT callback indefinitely - if one job wedges, no later job
+// gets processed. 15min is generous enough for the slow operations and short
+// enough that an operator notices.
+const JOB_HANDLER_TIMEOUT_MS = 15 * 60 * 1000;
+const TUNNEL_HANDLER_TIMEOUT_MS = 2 * 60 * 1000;
+
 async function execute_session(connection: mqtt.MqttClientConnection, program: ControllableProgram) {
    return new Promise(async (resolve, reject) => {
 
@@ -140,7 +148,11 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             const job: Job = Object.assign(new Job(), execution);
             log('received a new job', job);
             try {
-               await program.handleJob(job);
+               await withTimeout(
+                  program.handleJob(job),
+                  JOB_HANDLER_TIMEOUT_MS,
+                  `handleJob(${job.jobId ?? 'unknown'})`
+               );
             } catch (err) {
                error('program could not handle job', err)
             }
@@ -193,7 +205,11 @@ async function execute_session(connection: mqtt.MqttClientConnection, program: C
             log('received tunnel ');
             const tunnel = new Tunnel(region, json.services, json.clientAccessToken)
             try {
-               await program.handleTunnel(tunnel);
+               await withTimeout(
+                  program.handleTunnel(tunnel),
+                  TUNNEL_HANDLER_TIMEOUT_MS,
+                  'handleTunnel'
+               );
             } catch (err) {
                error('program could not handle tunnel', err);
             }
