@@ -13,7 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@microsoft/signalr": "^5",
-    "aws-iot-device-sdk-v2": "^1.15",
+    "aws-iot-device-sdk-v2": "^1.26.0",
     "aws-sdk": "^2.1429.0",
     "axios": "^0",
     "chalk": "^4",
