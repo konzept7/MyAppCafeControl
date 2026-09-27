@@ -45,6 +45,13 @@ class Tunnel {
 
   public isOpen: boolean = false;
 
+  // How long the local proxy has to stay alive after spawn() before we consider
+  // the tunnel open. A missing binary (ENOENT), bad arguments or an immediate
+  // exit all surface as 'error'/'close' well within this window, so open()
+  // rejects instead of reporting success. A timer (rather than the 'spawn'
+  // event) keeps this working on the Node 14 devices.
+  private static readonly OPEN_GRACE_MS = 2000;
+
   async open(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const proxyPath = path.join(
@@ -52,9 +59,11 @@ class Tunnel {
         "localproxy"
       );
       let settled = false;
+      let graceTimer: NodeJS.Timeout | undefined;
       const settle = (fn: () => void) => {
         if (settled) return;
         settled = true;
+        if (graceTimer) clearTimeout(graceTimer);
         fn();
       };
       try {
@@ -82,8 +91,10 @@ class Tunnel {
         localProxyProcess.stdout.on("data", (data: any) => {
           log("received tunnel data", Buffer.from(data).toString());
         });
-        this.isOpen = true;
-        settle(() => resolve());
+        graceTimer = setTimeout(() => {
+          this.isOpen = true;
+          settle(() => resolve());
+        }, Tunnel.OPEN_GRACE_MS);
       } catch (err) {
         error("error spawning tunnel command", { proxyPath, err });
         this.isOpen = false;

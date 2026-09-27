@@ -18,14 +18,14 @@ import axios from 'axios';
 // wedged local container hangs the calling job handler forever.
 axios.defaults.timeout = 60 * 1000;
 
-import { baseJobTopic, Job, JOBTOPICS } from './job'
+import { baseJobTopic, Job, JOBTOPICS, jobUpdate } from './job'
 import { shadowTopic, ShadowSubtopic, ServerShadowState } from './shadow'
-import { sleep, withTimeout } from './common'
+import { sleep, withTimeout, TimeoutError } from './common'
 import { ControllableProgram } from './controllableProgram';
 import { Tunnel, tunnelTopic } from './tunnel';
 import { Myappcafeserver, ServerState } from './myappcafeserver'
 
-import { log, error } from './log'
+import { log, error, debug } from './log'
 
 import * as dotenv from 'dotenv';
 import path from 'path';
@@ -127,140 +127,173 @@ const decoder = new TextDecoder('utf8');
 let lastMqttActivityAt = Date.now();
 const noteMqttActivity = () => { lastMqttActivityAt = Date.now(); };
 
-// Per-message timeouts. Even though handleJob can legitimately do slow things
-// (waiting for orders to finish, container restarts), nothing should be allowed
-// to block the MQTT callback indefinitely - if one job wedges, no later job
-// gets processed. 15min is generous enough for the slow operations and short
+// Per-message timeouts. The aws-crt subscribe callback returns void, so a slow
+// handler never blocked delivery of other messages - but a job whose handler
+// hangs forever would stay IN_PROGRESS in the cloud, and IoT Jobs does not
+// hand out the next job on notify-next while one is still in progress. The
+// timeout therefore FAILs the job in the cloud so the queue moves on, and the
+// tunnel handler simply stops waiting. 15min is generous enough for the slow
+// operations (waiting for orders to finish, container restarts) and short
 // enough that an operator notices.
 const JOB_HANDLER_TIMEOUT_MS = 15 * 60 * 1000;
 const TUNNEL_HANDLER_TIMEOUT_MS = 2 * 60 * 1000;
 
-async function execute_session(connection: mqtt.MqttClientConnection, program: ControllableProgram) {
-   return new Promise(async (resolve, reject) => {
+// Jobs whose handler is currently running. A re-published $next/get (after a
+// resume) or a duplicate delivery of the same execution would otherwise start
+// the handler a second time and race it against the first one.
+const jobsInFlight = new Set<string>();
 
-      connection.on('error', (err) => {
-         error('error on mqtt connection, trying to reconnect', err);
-         reject(err);
-      });
+interface SessionHandlers {
+   // subscribe to every topic we care about. `publishGets` additionally
+   // publishes the jobs GET and shadow GET so the broker sends us the current
+   // job list and shadow document; skip that when the session was retained.
+   subscribe_all: (publishGets: boolean) => Promise<void>;
+}
 
-      connection.on('disconnect', () => {
-         resolve('connection was closed gracefully')
-      });
-
-      try {
-         const on_job = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            noteMqttActivity();
-            const json = decoder.decode(payload);
-            log(`Job received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-            const execution = (JSON.parse(json)).execution;
-            if (!execution) return;
-            const job: Job = Object.assign(new Job(), execution);
-            log('received a new job', job);
-            try {
-               await withTimeout(
-                  program.handleJob(job),
-                  JOB_HANDLER_TIMEOUT_MS,
-                  `handleJob(${job.jobId ?? 'unknown'})`
-               );
-            } catch (err) {
-               error('program could not handle job', err)
-            }
-         }
-
-         const on_running_jobs = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            noteMqttActivity();
-            const json = decoder.decode(payload);
-            log(`Running jobs received. topic:"${topic}"`);
-            const inProgressJobs = (JSON.parse(json)).inProgressJobs;
-            const inProgress: Array<Job> = inProgressJobs.map((j: any) => {
-               const job: Job = Object.assign(new Job(), j);
-               return job
-            })
-            log('received in progress jobs, handling one by one', inProgress);
-            for (let index = 0; index < inProgress.length; index++) {
-               const job = inProgress[index];
-               log('handling job in progress', job)
-               const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
-               await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
-               await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
-            }
-            const queuedJobs = (JSON.parse(json)).queuedJobs;
-            const queued: Array<Job> = queuedJobs.map((j: any) => {
-               const job: Job = Object.assign(new Job(), j);
-               return job
-            })
-            log('received queued jobs', queued);
-            for (let index = 0; index < queued.length; index++) {
-               const job = queued[index];
-               log('handling queued job', job)
-               const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
-               await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
-               await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
-            }
-         }
-
-         const on_shadow = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            noteMqttActivity();
-            const json = decoder.decode(payload);
-            log(`Shadow received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-            log(json);
-         }
-
-         const on_tunnel = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
-            noteMqttActivity();
-            const tunnelAttributes = decoder.decode(payload);
-            const json = JSON.parse(tunnelAttributes);
-            log(`Tunnel notification received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
-            log('received tunnel ');
-            const tunnel = new Tunnel(region, json.services, json.clientAccessToken)
-            try {
-               await withTimeout(
-                  program.handleTunnel(tunnel),
-                  TUNNEL_HANDLER_TIMEOUT_MS,
-                  'handleTunnel'
-               );
-            } catch (err) {
-               error('program could not handle tunnel', err);
-            }
-         }
-
-         const subscribe_all = async () => {
-            const jobTopic = baseJobTopic(thingName);
-            await connection.subscribe(jobTopic + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
-            await connection.subscribe(jobTopic + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
-            await connection.subscribe(jobTopic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_running_jobs)
-            await connection.publish(jobTopic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
-
-            const myShadowTopic = shadowTopic(thingName);
-            await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
-            await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
-            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_DELTA, mqtt.QoS.AtLeastOnce, on_shadow)
-            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
-            await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
-            await connection.publish(myShadowTopic + ShadowSubtopic.GET, '', mqtt.QoS.AtLeastOnce, false);
-
-            const myTunnelTopic = tunnelTopic(thingName);
-            await connection.subscribe(myTunnelTopic, mqtt.QoS.AtLeastOnce, on_tunnel)
-         };
-
-         // On a transient SDK-level reconnect, the broker may or may not have
-         // retained subscriptions. Re-subscribing on every resume is idempotent
-         // and cheap; not re-subscribing means a silently-dead session.
-         connection.on('interrupt', (err) => {
-            log('mqtt connection interrupted, awaiting resume', err)
-         });
-         connection.on('resume', (returnCode, sessionPresent) => {
-            log(`mqtt connection resumed (rc=${returnCode}, sessionPresent=${sessionPresent}), re-subscribing`)
-            noteMqttActivity();
-            subscribe_all().catch((err) => error('failed to re-subscribe after resume', err));
-         });
-
-         await subscribe_all();
-
-      } catch (err) {
-         error('error while executing session', err)
-         reject(err);
+// Build the message handlers for one connection. Called exactly once so the
+// initial subscribe and every later re-subscribe share the same closures.
+function createSessionHandlers(connection: mqtt.MqttClientConnection, program: ControllableProgram): SessionHandlers {
+   const on_job = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+      noteMqttActivity();
+      const json = decoder.decode(payload);
+      log(`Job received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
+      const execution = (JSON.parse(json)).execution;
+      if (!execution) return;
+      const job: Job = Object.assign(new Job(), execution);
+      if (job.jobId && jobsInFlight.has(job.jobId)) {
+         log(`job ${job.jobId} is already being handled, ignoring redelivery`);
+         return;
       }
+      log('received a new job', job);
+      if (job.jobId) jobsInFlight.add(job.jobId);
+      try {
+         await withTimeout(
+            program.handleJob(job),
+            JOB_HANDLER_TIMEOUT_MS,
+            `handleJob(${job.jobId ?? 'unknown'})`
+         );
+      } catch (err) {
+         error('program could not handle job', err)
+         // Ordinary handler failures publish their own Fail. Only the timeout
+         // path has nobody else to terminate the job in the cloud.
+         if (err instanceof TimeoutError && job.jobId) {
+            jobUpdate(job.jobId, job.Fail('timeout', 'AXXXX'), thingName, connection);
+         }
+      } finally {
+         if (job.jobId) jobsInFlight.delete(job.jobId);
+      }
+   }
+
+   const on_running_jobs = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+      noteMqttActivity();
+      const json = decoder.decode(payload);
+      log(`Running jobs received. topic:"${topic}"`);
+      const inProgressJobs = (JSON.parse(json)).inProgressJobs;
+      const inProgress: Array<Job> = inProgressJobs.map((j: any) => {
+         const job: Job = Object.assign(new Job(), j);
+         return job
+      })
+      log('received in progress jobs, handling one by one', inProgress);
+      for (let index = 0; index < inProgress.length; index++) {
+         const job = inProgress[index];
+         log('handling job in progress', job)
+         const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
+         await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
+         await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+      }
+      const queuedJobs = (JSON.parse(json)).queuedJobs;
+      const queued: Array<Job> = queuedJobs.map((j: any) => {
+         const job: Job = Object.assign(new Job(), j);
+         return job
+      })
+      log('received queued jobs', queued);
+      for (let index = 0; index < queued.length; index++) {
+         const job = queued[index];
+         log('handling queued job', job)
+         const topic = `$aws/things/${thingName}/jobs/${job.jobId}/`
+         await connection.subscribe(topic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_job)
+         await connection.publish(topic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+      }
+   }
+
+   const shadowGetAcceptedTopic = shadowTopic(thingName) + ShadowSubtopic.GET_ACCEPTED;
+   const on_shadow = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+      noteMqttActivity();
+      const json = decoder.decode(payload);
+      // get/accepted arrives once a minute as the heartbeat response; keep it
+      // out of journald unless DEBUG is set. Everything else stays visible.
+      const write = topic === shadowGetAcceptedTopic ? debug : log;
+      write(`Shadow received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
+      write(json);
+   }
+
+   const on_tunnel = async (topic: string, payload: ArrayBuffer, dup: boolean, qos: mqtt.QoS, retain: boolean) => {
+      noteMqttActivity();
+      const tunnelAttributes = decoder.decode(payload);
+      const json = JSON.parse(tunnelAttributes);
+      log(`Tunnel notification received. topic:"${topic}" dup:${dup} qos:${qos} retain:${retain}`);
+      log('received tunnel ');
+      const tunnel = new Tunnel(region, json.services, json.clientAccessToken)
+      try {
+         await withTimeout(
+            program.handleTunnel(tunnel),
+            TUNNEL_HANDLER_TIMEOUT_MS,
+            'handleTunnel'
+         );
+      } catch (err) {
+         error('program could not handle tunnel', err);
+      }
+   }
+
+   const subscribe_all = async (publishGets: boolean) => {
+      const jobTopic = baseJobTopic(thingName);
+      await connection.subscribe(jobTopic + JOBTOPICS.NOTIFY, mqtt.QoS.AtLeastOnce, on_job)
+      await connection.subscribe(jobTopic + JOBTOPICS.NEXT, mqtt.QoS.AtLeastOnce, on_job)
+      await connection.subscribe(jobTopic + JOBTOPICS.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_running_jobs)
+      if (publishGets) await connection.publish(jobTopic + JOBTOPICS.GET, '', mqtt.QoS.AtLeastOnce, false)
+
+      const myShadowTopic = shadowTopic(thingName);
+      await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
+      await connection.subscribe(myShadowTopic + ShadowSubtopic.GET_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
+      await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_DELTA, mqtt.QoS.AtLeastOnce, on_shadow)
+      await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_ACCEPTED, mqtt.QoS.AtLeastOnce, on_shadow)
+      await connection.subscribe(myShadowTopic + ShadowSubtopic.UPDATE_REJECTED, mqtt.QoS.AtLeastOnce, on_shadow)
+      if (publishGets) await connection.publish(myShadowTopic + ShadowSubtopic.GET, '', mqtt.QoS.AtLeastOnce, false);
+
+      const myTunnelTopic = tunnelTopic(thingName);
+      await connection.subscribe(myTunnelTopic, mqtt.QoS.AtLeastOnce, on_tunnel)
+   };
+
+   return { subscribe_all };
+}
+
+// Run one MQTT session: subscribe to everything and stay alive until the
+// connection errors (reject) or disconnects gracefully (resolve). The
+// error/disconnect listeners are removed on settle so the retry loop in main
+// does not accumulate one pair per attempt.
+async function execute_session(connection: mqtt.MqttClientConnection, handlers: SessionHandlers) {
+   return new Promise((resolve, reject) => {
+      const onError = (err: Error) => {
+         error('error on mqtt connection, trying to reconnect', err);
+         cleanup();
+         reject(err);
+      };
+      const onDisconnect = () => {
+         cleanup();
+         resolve('connection was closed gracefully');
+      };
+      const cleanup = () => {
+         connection.removeListener('error', onError);
+         connection.removeListener('disconnect', onDisconnect);
+      };
+      connection.on('error', onError);
+      connection.on('disconnect', onDisconnect);
+
+      handlers.subscribe_all(true).catch((err) => {
+         error('error while executing session', err);
+         cleanup();
+         reject(err);
+      });
    });
 }
 
@@ -321,15 +354,22 @@ const WATCHDOG_THRESHOLD_MS = 10 * 60 * 1000;
    await connection.connect()
    noteMqttActivity();
 
+   // Self-scheduling timeout rather than setInterval: the next heartbeat is
+   // armed only after the previous publish settled, so publishes cannot pile
+   // up while the connection is interrupted.
    const heartbeatTopic = shadowTopic(thingName) + ShadowSubtopic.GET;
-   setInterval(async () => {
-      try {
-         await connection.publish(heartbeatTopic, '', mqtt.QoS.AtLeastOnce, false);
-         noteMqttActivity();
-      } catch (err) {
-         error('heartbeat publish failed', err);
-      }
-   }, HEARTBEAT_INTERVAL_MS);
+   const scheduleHeartbeat = () => {
+      setTimeout(async () => {
+         try {
+            await connection.publish(heartbeatTopic, '', mqtt.QoS.AtLeastOnce, false);
+            noteMqttActivity();
+         } catch (err) {
+            error('heartbeat publish failed', err);
+         }
+         scheduleHeartbeat();
+      }, HEARTBEAT_INTERVAL_MS);
+   };
+   scheduleHeartbeat();
 
    setInterval(() => {
       const idleMs = Date.now() - lastMqttActivityAt;
@@ -350,11 +390,12 @@ const WATCHDOG_THRESHOLD_MS = 10 * 60 * 1000;
    } catch (err) {
       error('error while preparing myappcafeserver', err)
    }
-   try {
-      await myappcafeserver.connect();
-   } catch (err) {
+   // Deliberately not awaited: connect() retries forever while the server
+   // container is down, and that is exactly the state an init/start job (which
+   // needs the MQTT session below) is meant to fix.
+   myappcafeserver.connect().catch((err) => {
       error('error while connecting to myappcafeserver signalR hubs', err)
-   }
+   });
    myappcafeserver.on('change', (newState: ServerState) => {
       log('received state change from server, reporting shadow change')
       const state = new ServerShadowState();
@@ -362,9 +403,26 @@ const WATCHDOG_THRESHOLD_MS = 10 * 60 * 1000;
       myappcafeserver.shadow.setCurrentState(state);
    })
 
+   const handlers = createSessionHandlers(connection, myappcafeserver);
+
+   // Registered once for the lifetime of the connection (not per session
+   // attempt). On a transient SDK-level reconnect the broker may or may not
+   // have retained our subscriptions; re-subscribing is idempotent and cheap,
+   // not re-subscribing means a silently-dead session. The GET publishes are
+   // only repeated when the broker dropped the session, so a retained session
+   // does not get its current job redelivered.
+   connection.on('interrupt', (err) => {
+      log('mqtt connection interrupted, awaiting resume', err)
+   });
+   connection.on('resume', (returnCode, sessionPresent) => {
+      log(`mqtt connection resumed (rc=${returnCode}, sessionPresent=${sessionPresent}), re-subscribing`)
+      noteMqttActivity();
+      handlers.subscribe_all(!sessionPresent).catch((err) => error('failed to re-subscribe after resume', err));
+   });
+
    while (true) {
       try {
-         await execute_session(connection, myappcafeserver);
+         await execute_session(connection, handlers);
          log('session terminated gracefully, exiting application');
          process.exit(0);
       } catch (err) {

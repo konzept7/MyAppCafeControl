@@ -2,17 +2,24 @@ const REDIS_HOST = "localhost";
 const REDIS_PORT = 6379;
 
 // IORedis defaults: connectTimeout 10s, maxRetriesPerRequest 20, no per-command
-// timeout, offline queueing enabled. On a wedged or unreachable local Redis,
-// commands sit in the offline queue and resolve eventually (or never) - which
-// blocks the calling job handler. Use conservative settings so a Redis problem
-// fails the affected job within a few seconds instead of hanging it. Local
-// Redis on the same box should respond in well under 1s; 5s is generous.
+// timeout. On a wedged or unreachable local Redis, commands would otherwise
+// resolve eventually (or never) and block the calling job handler. Use
+// conservative settings so a Redis problem fails the affected job within a few
+// seconds instead of hanging it. Local Redis on the same box should respond in
+// well under 1s; 5s is generous.
+//
+// The offline queue stays ENABLED on purpose: every client created here is
+// used immediately after construction (before the socket is writable), so
+// disabling the queue would reject 100% of those first commands with
+// "Stream isn't writeable". connectTimeout + commandTimeout +
+// maxRetriesPerRequest still bound how long a queued command can wait.
+// Callers must disconnect() the client in a finally block so a failed job
+// does not leave a client reconnecting forever.
 function createRedisClient(): any {
   return new Redis(REDIS_PORT, REDIS_HOST, {
     connectTimeout: 5000,
     commandTimeout: 5000,
     maxRetriesPerRequest: 3,
-    enableOfflineQueue: false,
   });
 }
 
@@ -20,7 +27,7 @@ import { ControllableProgram } from "./controllableProgram";
 import EventEmitter from "events";
 import axios from "axios";
 import { mqtt } from "aws-iot-device-sdk-v2";
-import { awaitableExec, sleep } from "./common";
+import { awaitableExec, sleep, withTimeout } from "./common";
 import { Job, jobUpdate, StatusDetails, JobOption } from "./job";
 import { ServerShadow, ServerShadowState, IShadowState } from "./shadow";
 import { SessionCredentials } from "./sessionCredentials";
@@ -77,6 +84,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   public images: Array<Dockerode.ImageInfo>;
   private _isBlockingOrders = false;
   private _currentOrders = new Array<any>();
+  // true while a connect() retry loop is running, so that onclose and the
+  // initial connect cannot start two loops against the same hub
+  private _connecting = false;
 
   get state() {
     return this._state;
@@ -155,6 +165,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       error("server disconnected", err);
       this._isBlockingOrders = false;
       this.state = ServerState.closed;
+      // onclose only fires when the hub is really gone: either the server
+      // closed it, or withAutomaticReconnect gave up after its 24h budget.
+      // Nobody ever calls _stateConnection.stop(), so re-establish the hub
+      // here - otherwise the control program stays deaf to server state
+      // changes until the next process restart.
+      this.connect().catch((e) =>
+        error("could not re-establish signalR connection after close", e)
+      );
     });
 
     this._stateConnection.onreconnected((connectionId: string) => {
@@ -369,22 +387,43 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     );
   }
 
-  async connect(maxAttempts: number = 8): Promise<string> {
+  // Establish the signalR state hub connection. By default this retries
+  // forever (15s between attempts): the server container may legitimately be
+  // down for a long time (e.g. until an init/start job arrives), and giving up
+  // would leave us blind to server state for the rest of the process lifetime.
+  // Each start() is bounded so a hung negotiate cannot stall the loop.
+  async connect(maxAttempts: number = Infinity): Promise<string> {
+    if (this._connecting) {
+      log("signalR connect already in progress, not starting a second loop");
+      return "connect already in progress";
+    }
+    this._connecting = true;
     let attempt = 0;
-    while (true) {
-      attempt++;
-      try {
-        await this._stateConnection.start({ withCredentials: false });
-        log("connected to signalR");
-        return "connected to state hub";
-      } catch (err) {
-        this.state = ServerState.closed;
-        error(`error starting connection to server (attempt ${attempt}/${maxAttempts})`, err);
-        if (attempt >= maxAttempts) {
-          throw new Error(`signalR connect failed after ${maxAttempts} attempts: ${err}`);
+    try {
+      while (true) {
+        attempt++;
+        try {
+          await withTimeout(
+            this._stateConnection.start({ withCredentials: false }),
+            30 * 1000,
+            "signalR start"
+          );
+          log("connected to signalR");
+          return "connected to state hub";
+        } catch (err) {
+          this.state = ServerState.closed;
+          error(
+            `error starting connection to server (attempt ${attempt}/${maxAttempts})`,
+            err
+          );
+          if (attempt >= maxAttempts) {
+            throw err;
+          }
+          await sleep(15 * 1000);
         }
-        await sleep(15 * 1000);
       }
+    } finally {
+      this._connecting = false;
     }
   }
   async startContainers(images: Array<string>) {
@@ -488,12 +527,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async initBoxNow(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
       log("got request to start box, current state: " + this.state);
-      if (this.state === ServerState.FatalError) {
-        log("server is in fatal error, shutting down");
-        await this.shutdownGracefully(10);
-        await sleep(10 * 1000);
-      }
       try {
+        if (this.state === ServerState.FatalError) {
+          log("server is in fatal error, shutting down");
+          await this.shutdownGracefully(10);
+          await sleep(10 * 1000);
+        }
         if (this.state === ServerState.closed) {
           log("server is currently shut down, starting containers");
           await this.start();
@@ -1034,15 +1073,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._connection
       );
       const client = createRedisClient();
-      await client.del("isMoving");
-      await client.del("unrecoverable");
+      try {
+        await client.del("isMoving");
+        await client.del("unrecoverable");
+      } finally {
+        client.disconnect();
+      }
       jobUpdate(
         job.jobId,
         job.Progress(0.9, "keysRemoved"),
         this._thingName,
         this._connection
       );
-      await client.disconnect();
       jobUpdate(
         job.jobId,
         job.Succeed("success"),
@@ -1459,11 +1501,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     // Wait up to (inSeconds + 2 minutes) for the server to actually reach
     // 'closed'. The original implementation had no timeout at all and leaked
     // its state-change listener every call.
-    await this.waitForStateChange(
-      (s) => (s === ServerState.closed ? 'resolve' : 'keep-waiting'),
-      (inSeconds + 120) * 1000,
-      'shutdownGracefully'
-    );
+    // The state may already have flipped to 'closed' while the POST was in
+    // flight (the hub drops before axios resolves). The check below and the
+    // listener registration inside waitForStateChange run in the same
+    // synchronous continuation, so there is no window for a missed event.
+    // (Cast: TS keeps the early-return narrowing above across the await.)
+    if ((this.state as ServerState) !== ServerState.closed) {
+      await this.waitForStateChange(
+        (s) => (s === ServerState.closed ? 'resolve' : 'keep-waiting'),
+        (inSeconds + 120) * 1000,
+        'shutdownGracefully'
+      );
+    }
     return "server is shut down";
   }
 
@@ -1623,8 +1672,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      await client.del("orders");
-      await client.disconnect();
+      try {
+        await client.del("orders");
+      } finally {
+        client.disconnect();
+      }
       jobUpdate(
         job.jobId,
         job.Succeed("ordersRemoved"),
@@ -1779,6 +1831,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             "application is not in a state where pause is allowed, current state: " +
               this.state
           );
+          return;
         }
         if (
           this.state === ServerState.Paused ||
@@ -1794,14 +1847,27 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           return;
         }
 
+        // The job outcome is published exactly once. Both the state watcher
+        // below and the request path further down can fail/succeed the job;
+        // whichever settles first wins and the other becomes a no-op.
+        let settled = false;
+        const settleOnce = (fn: () => void) => {
+          if (settled) return;
+          settled = true;
+          fn();
+        };
+
         // Listen for the state to reach Paused (success) or change to anything
-        // other than Pausing (failure). Use the helper so we can't leak this
-        // listener if the wait never completes. 10 minutes is generous - the
-        // soft path may have to wait for orders to finish first.
+        // other than Pausing (failure). The predicate only looks at the new
+        // value: while we are waiting, the server may only be Pausing or
+        // Paused, anything else means the pause request was overtaken. Use the
+        // helper so we can't leak this listener if the wait never completes.
+        // 10 minutes is generous - the soft path may have to wait for orders
+        // to finish first.
         const pausedWatcher = this.waitForStateChange(
           (newValue) => {
             if (newValue === ServerState.Paused) return 'resolve';
-            if (newValue !== ServerState.Pausing && this.state !== newValue) return 'reject';
+            if (newValue !== ServerState.Pausing) return 'reject';
             return 'keep-waiting';
           },
           10 * 60 * 1000,
@@ -1809,13 +1875,17 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         );
         pausedWatcher.then(
           () => {
-            jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
-            resolve(true);
+            settleOnce(() => {
+              jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+              resolve(true);
+            });
           },
           (err) => {
-            warn("pause was requested, but server transitioned away", err);
-            jobUpdate(job.jobId, job.Fail("wrongStateResult", "AXXXX"), this._thingName, this._connection);
-            reject(err);
+            settleOnce(() => {
+              warn("pause was requested, but server transitioned away", err);
+              jobUpdate(job.jobId, job.Fail("wrongStateResult", "AXXXX"), this._thingName, this._connection);
+              reject(err);
+            });
           }
         );
 
@@ -1841,13 +1911,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             });
           } catch (err) {
             error("error while waiting for application to be paused", err);
-            jobUpdate(
-              job.jobId,
-              job.Fail("failed", "AXXXX"),
-              this._thingName,
-              this._connection
-            );
-            reject();
+            settleOnce(() => {
+              jobUpdate(
+                job.jobId,
+                job.Fail("failed", "AXXXX"),
+                this._thingName,
+                this._connection
+              );
+              reject(err);
+            });
             return;
           }
         }
@@ -2293,19 +2365,22 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._thingName,
         this._connection
       );
-      await client.del("isMoving");
-      await client.del("unrecoverable");
-      jobUpdate(
-        job.jobId,
-        job.Progress(0.8, "settingCleanShutdown"),
-        this._thingName,
-        this._connection
-      );
-      await client.set(
-        "shutdown",
-        '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}'
-      );
-      await client.disconnect();
+      try {
+        await client.del("isMoving");
+        await client.del("unrecoverable");
+        jobUpdate(
+          job.jobId,
+          job.Progress(0.8, "settingCleanShutdown"),
+          this._thingName,
+          this._connection
+        );
+        await client.set(
+          "shutdown",
+          '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}'
+        );
+      } finally {
+        client.disconnect();
+      }
       jobUpdate(
         job.jobId,
         job.Succeed("success"),
