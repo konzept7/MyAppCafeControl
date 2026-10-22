@@ -41,6 +41,9 @@ This program serves as a control program for all applications running in a MyApp
 
 Repo also contains installation and registration scripts.
 
+### Pricelist
+
+The docker-compose files contain the `pricelist` service ([mac-pricelist](https://github.com/fxb-engineering/mac-pricelist)), published on port `5008`. It reads `BOXID` from the `.env` file. The box config API defaults to `https://api.myapp.cafe` and can be overridden with `PRICELIST_API_URL`.
 
 Every `reload-config` job also calls `POST http://localhost:5008/api/refresh` (port can be overridden with `PRICELIST_PORT`). Open menu screens then show the new prices without a reload. A failing refresh is only logged and does not fail the job.
 

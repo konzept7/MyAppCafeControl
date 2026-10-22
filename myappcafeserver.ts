@@ -1363,6 +1363,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
+    // prices may have changed together with the config, menu screens update without restart
+    await this.refreshPricelist();
     const option = job.jobDocument.option || "soft";
     if (option === "soft") {
       if (previousState === ServerState.NeverInitialized) {
@@ -1407,6 +1409,32 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       this._thingName,
       this._connection
     );
+  }
+
+  // asks the pricelist container to fetch products and prices again, open menu screens
+  // are notified via server-sent events. best effort: a missing or failing pricelist
+  // must never fail the job that triggered the refresh
+  async refreshPricelist(): Promise<boolean> {
+    const port = process.env.PRICELIST_PORT || "5008";
+    const refreshUrl = `http://localhost:${port}/api/refresh`;
+    log("refreshing pricelist", refreshUrl);
+    try {
+      // send json explicitly, the pricelist (SvelteKit) rejects POSTs without or with a
+      // form content type as cross-site form submissions
+      const response = await axios.post(
+        refreshUrl,
+        {},
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 15 * 1000,
+        }
+      );
+      log("pricelist refreshed", response.data);
+      return true;
+    } catch (err) {
+      warn("could not refresh pricelist", err);
+      return false;
+    }
   }
 
   private getEnvPath() {
@@ -1537,6 +1565,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     "status-frontend",
     "display-queue",
     "terminal",
+    "pricelist",
     "myappcafeserver",
   ];
   async updateHandler(job: Job) {
@@ -2545,7 +2574,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await awaitableExec(
           this.composeCommand +
             this.composeFile +
-            " up -d config-provider redis terminal status-frontend display-queue",
+            " up -d config-provider redis terminal status-frontend display-queue pricelist",
           {
             cwd: this._serverPath,
           }
