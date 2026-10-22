@@ -13,6 +13,7 @@ Diese Änderungshistorie bezieht sich ausschließlich auf die readme-Datei. Alle
 | Version | Datum     | Autor | Bemerkung |
 | ------- | --------- | ----- | --------- |
 | 1.0.0   | 10.2.2023 | FB    | Init      |
+| 1.1.0   | 21.10.2026 | FB   | Pricelist |
 
 Änderungen in dieser Datei sind ebenfalls der git-Historie zu entnehmen.
 
@@ -39,6 +40,9 @@ Secrets are only handled locally when executing installation scripts.
 This program serves as a control program for all applications running in a MyAppCafe box. It keeps a permanent connection to a server. It provides a way of controlling the MyAppCafé Server remotely.
 
 Repo also contains installation and registration scripts.
+
+
+Every `reload-config` job also calls `POST http://localhost:5008/api/refresh` (port can be overridden with `PRICELIST_PORT`). Open menu screens then show the new prices without a reload. A failing refresh is only logged and does not fail the job.
 
 ### Auftraggeber
 
