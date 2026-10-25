@@ -87,6 +87,20 @@ services:
       - VUE_APP_MAINSERVER_PORT=${VUE_APP_MAINSERVER_PORT}
       - VUE_APP_LANGUAGE=${VUE_APP_LANGUAGE}
       - VUE_APP_BOXID=${BOXID}
+  pricelist:
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/mac-pricelist:latest
+    container_name: pricelist
+    ports:
+      - "5008:3000"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
+    environment:
+      - PUBLIC_BOXID=${BOXID}
+      - PUBLIC_ERP_API_URL=${PRICELIST_API_URL:-https://api.myapp.cafe}
   myappcafeserver:
     image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/myappcafeserver-debug:latest
     container_name: myappcafeserver
