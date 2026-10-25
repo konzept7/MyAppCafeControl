@@ -2235,27 +2235,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   private async toggleBlockOrders(block: boolean): Promise<boolean> {
-    console.log("a");
     log("trying to " + (block ? "block" : "unblock") + " orders");
-    console.log("b");
     const url = this._url + "order/block";
-    console.log("c " + url);
     try {
-      console.log("d");
       if (block) {
-        console.log("e");
         await axios.put(url);
-        console.log("f");
         return true;
       } else {
-        console.log("g");
         await axios.delete(url);
-        console.log("h");
         return true;
       }
     } catch (err) {
       error("error blocking/unblocking orders", err);
-      console.log("error blocking/unblocking orders: ", err);
       return false;
     }
   }
