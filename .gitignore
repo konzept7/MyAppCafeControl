@@ -18,5 +18,7 @@ me.cert.pfx
 update.log
 dependencies
 scripts/once.flag
+scripts/version_flag
+scripts/docker-restart-pending
 scripts/once.log
 package-lock.json

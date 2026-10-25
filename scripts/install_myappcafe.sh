@@ -201,6 +201,11 @@ sudo systemctl start ssh
 echo '-----------------------------------------------------------'
 echo
 echo 'Updating pi...'
+# Raspbian moved Buster to legacy.raspbian.org in Nov 2025, the old host makes
+# every 'apt-get update' fail (issue #16)
+if [[ $(lsb_release -cs) == "buster" ]]; then
+    sudo sed -i 's|raspbian.raspberrypi.org|legacy.raspbian.org|g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list
+fi
 sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade
 echo '-----------------------------------------------------------'
 echo
@@ -245,6 +250,13 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
             cd /home/pi/srv/MyAppCafeControl
             git pull
         fi
+
+        echo "Upgrading libseccomp2 on Buster (no-op on other OS versions)"
+        # Docker picks up the new library with the reboot at the end of this
+        # script. The once flag is deliberately left unset: the first update
+        # run executes all once scripts (crontab setup in 4.sh, and 10.sh
+        # retries this upgrade if it failed here).
+        bash /home/pi/srv/MyAppCafeControl/scripts/upgrade-libseccomp-buster.sh
 
         if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
             mkdir /home/pi/srv/MyAppCafeControl/node_modules

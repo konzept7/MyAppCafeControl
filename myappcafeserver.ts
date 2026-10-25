@@ -38,6 +38,8 @@ import { Rm, RobotTest } from "./RobotTest";
 // control docker with dockerode
 import Dockerode from "dockerode";
 import { existsSync, readFile, writeFile } from "fs";
+import { stat, unlink } from "fs/promises";
+import { uptime } from "os";
 import path from "path";
 
 var docker = new Dockerode();
@@ -463,7 +465,92 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       this.composeCommand + " " + this.composeFile + " stop",
       {}
     );
+    await this.applyPendingDockerRestart();
     return true;
+  }
+
+  // Issue #16: scripts/once/10.sh upgrades libseccomp2 on Buster boxes and
+  // writes this marker instead of restarting Docker, because a Docker restart
+  // restarts every container, including a server that is serving orders.
+  // The restart is applied here, at a point where the whole compose stack has
+  // already been stopped by the control program (update, shutdown, start
+  // hard/forced). A reboot applies the new library as well, so a marker older
+  // than the current boot is just removed.
+  // Set for the whole check-and-restart, until systemctl has returned. A
+  // second caller (another job stopping the stack) waits for the running
+  // restart instead of starting containers or issuing another restart.
+  private _dockerRestartInFlight: Promise<void> | undefined;
+
+  private async applyPendingDockerRestart(): Promise<void> {
+    if (this._dockerRestartInFlight) return this._dockerRestartInFlight;
+    this._dockerRestartInFlight = this.restartDockerIfMarked().finally(() => {
+      this._dockerRestartInFlight = undefined;
+    });
+    return this._dockerRestartInFlight;
+  }
+
+  private async restartDockerIfMarked(): Promise<void> {
+    // written by scripts/once/10.sh; the service runs with the repo as cwd
+    const marker = path.join(process.cwd(), "scripts", "docker-restart-pending");
+    try {
+      let markedAt: number;
+      try {
+        markedAt = (await stat(marker)).mtimeMs;
+      } catch {
+        return; // no restart pending
+      }
+
+      const bootedAt = Date.now() - uptime() * 1000;
+      if (markedAt < bootedAt) {
+        log(
+          "docker restart was pending, but the box rebooted since then - removing marker " +
+            marker
+        );
+        await unlink(marker);
+        return;
+      }
+
+      // Never restart Docker while parts of the stack are still running: the
+      // daemon restart would bring them down (and back up) mid-operation.
+      const running = (await docker.listContainers()).filter((c) =>
+        c.Names.some((n) => this._containers.includes(n.replace(/^\//, "")))
+      );
+      if (running.length > 0) {
+        warn(
+          "docker restart is pending, but containers are still running - keeping marker for the next stack restart",
+          running.map((c) => c.Names.join(","))
+        );
+        return;
+      }
+
+      // Deliberately not wrapped in withTimeout: a timeout cannot cancel the
+      // systemd restart job, so releasing the caller early would let it run
+      // 'compose up' (or a second restart via another job) against a daemon
+      // that is still restarting. _dockerRestartInFlight stays set until
+      // systemctl has really returned. Nothing can start without the daemon
+      // anyway, and the per-job timeout in index.ts still fails the job in
+      // the cloud so IoT Jobs moves on. A slow restart is logged instead.
+      log("restarting docker daemon to load the upgraded libseccomp2");
+      const startedAt = Date.now();
+      const slowRestartWarning = setInterval(() => {
+        warn(
+          `docker restart still running after ${Math.round(
+            (Date.now() - startedAt) / 60000
+          )} min, containers stay stopped until it has finished`
+        );
+      }, 5 * 60 * 1000);
+      try {
+        await awaitableExec("sudo systemctl restart docker", {});
+      } finally {
+        clearInterval(slowRestartWarning);
+      }
+      await unlink(marker);
+      log("docker daemon restarted, removed marker " + marker);
+    } catch (err) {
+      // keep the marker, the next stack restart tries again; the surrounding
+      // job must not fail because of this
+      error("could not apply pending docker restart", err);
+    }
   }
 
   stop() {
@@ -2489,6 +2576,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await awaitableExec(this.composeCommand + this.composeFile + " stop", {
           cwd: this._serverPath,
         });
+        await this.applyPendingDockerRestart();
         if (job) {
           let progressRequest = job.Progress(0.5, "stoppedApplications");
           jobUpdate(
