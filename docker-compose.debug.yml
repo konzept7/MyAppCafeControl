@@ -3,10 +3,19 @@ version: "3"
 volumes:
   logs: null
   redis-data: null
-  events:
-
-    null
+  events: null
 services:
+  adyen-bridge:
+    image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/adyen-bridge:latest
+    container_name: adyen-bridge
+    ports:
+      - "8010:8080"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "2"
+        max-size: "1m"
   terminal:
     image: 311842024294.dkr.ecr.eu-central-1.amazonaws.com/terminal-debug:latest
     container_name: terminal
