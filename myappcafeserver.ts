@@ -124,7 +124,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     orderHubUrl: string,
     path: string,
     thingName: string,
-    connection: mqtt.MqttClientConnection
+    connection: mqtt.MqttClientConnection,
   ) {
     super();
     this.state = ServerState.closed;
@@ -173,7 +173,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // here - otherwise the control program stays deaf to server state
       // changes until the next process restart.
       this.connect().catch((e) =>
-        error("could not re-establish signalR connection after close", e)
+        error("could not re-establish signalR connection after close", e),
       );
     });
 
@@ -238,10 +238,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       var order = JSON.parse(args);
 
       var updatedCurrentOrderIndex = this._currentOrders.findIndex(
-        (o) => o.OrderId === order.OrderId
+        (o) => o.OrderId === order.OrderId,
       );
       var updatedQueuedOrderIndex = this._currentOrders.findIndex(
-        (o) => o.OrderId === order.OrderId
+        (o) => o.OrderId === order.OrderId,
       );
 
       // order is not yet in list
@@ -311,7 +311,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           }
           this.containers = response;
           log("containers running", this.containers);
-        }
+        },
       );
 
       // find out if images are built for all necessary containers
@@ -326,7 +326,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
           let imageInfoAccumulator = (
             array: Array<string>,
-            entry: Dockerode.ImageInfo
+            entry: Dockerode.ImageInfo,
           ): Array<string> => {
             return [...array, ...(entry.RepoTags ?? [])];
           };
@@ -334,15 +334,15 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           this.images = response.filter(
             (image) =>
               image.RepoTags?.some((tag: string) => tag.endsWith("latest")) ??
-              false
+              false,
           );
           const allCustomTags: Array<string> = this.images.reduce(
             imageInfoAccumulator,
-            [] as Array<string>
+            [] as Array<string>,
           );
           log("all custom image tags", allCustomTags);
           resolve(true);
-        }
+        },
       );
     });
   }
@@ -408,7 +408,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           await withTimeout(
             this._stateConnection.start({ withCredentials: false }),
             30 * 1000,
-            "signalR start"
+            "signalR start",
           );
           log("connected to signalR");
           return "connected to state hub";
@@ -416,7 +416,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           this.state = ServerState.closed;
           error(
             `error starting connection to server (attempt ${attempt}/${maxAttempts})`,
-            err
+            err,
           );
           if (attempt >= maxAttempts) {
             throw err;
@@ -434,7 +434,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       this.composeCommand + this.composeFile + " up -d " + images.join(" "),
       {
         cwd: this._serverPath,
-      }
+      },
     );
   }
 
@@ -463,7 +463,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     // }
     await awaitableExec(
       this.composeCommand + " " + this.composeFile + " stop",
-      {}
+      {},
     );
     await this.applyPendingDockerRestart();
     return true;
@@ -491,7 +491,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
 
   private async restartDockerIfMarked(): Promise<void> {
     // written by scripts/once/10.sh; the service runs with the repo as cwd
-    const marker = path.join(process.cwd(), "scripts", "docker-restart-pending");
+    const marker = path.join(
+      process.cwd(),
+      "scripts",
+      "docker-restart-pending",
+    );
     try {
       let markedAt: number;
       try {
@@ -504,7 +508,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       if (markedAt < bootedAt) {
         log(
           "docker restart was pending, but the box rebooted since then - removing marker " +
-            marker
+            marker,
         );
         await unlink(marker);
         return;
@@ -513,12 +517,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // Never restart Docker while parts of the stack are still running: the
       // daemon restart would bring them down (and back up) mid-operation.
       const running = (await docker.listContainers()).filter((c) =>
-        c.Names.some((n) => this._containers.includes(n.replace(/^\//, "")))
+        c.Names.some((n) => this._containers.includes(n.replace(/^\//, ""))),
       );
       if (running.length > 0) {
         warn(
           "docker restart is pending, but containers are still running - keeping marker for the next stack restart",
-          running.map((c) => c.Names.join(","))
+          running.map((c) => c.Names.join(",")),
         );
         return;
       }
@@ -532,13 +536,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       // the cloud so IoT Jobs moves on. A slow restart is logged instead.
       log("restarting docker daemon to load the upgraded libseccomp2");
       const startedAt = Date.now();
-      const slowRestartWarning = setInterval(() => {
-        warn(
-          `docker restart still running after ${Math.round(
-            (Date.now() - startedAt) / 60000
-          )} min, containers stay stopped until it has finished`
-        );
-      }, 5 * 60 * 1000);
+      const slowRestartWarning = setInterval(
+        () => {
+          warn(
+            `docker restart still running after ${Math.round(
+              (Date.now() - startedAt) / 60000,
+            )} min, containers stay stopped until it has finished`,
+          );
+        },
+        5 * 60 * 1000,
+      );
       try {
         await awaitableExec("sudo systemctl restart docker", {});
       } finally {
@@ -569,7 +576,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       };
       const timer = setTimeout(() => {
         this.removeListener(event, listener);
-        reject(new Error(`timed out after ${timeout}ms waiting for event '${event}'`));
+        reject(
+          new Error(
+            `timed out after ${timeout}ms waiting for event '${event}'`,
+          ),
+        );
       }, timeout);
       this.once(event, listener);
     });
@@ -587,9 +598,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   //   'reject'      - settle the promise with a rejection
   //   'keep-waiting' - ignore this state, keep listening
   waitForStateChange(
-    decide: (newState: ServerState) => 'resolve' | 'reject' | 'keep-waiting',
+    decide: (newState: ServerState) => "resolve" | "reject" | "keep-waiting",
     timeoutMs: number,
-    label: string
+    label: string,
   ): Promise<ServerState> {
     return new Promise<ServerState>((resolve, reject) => {
       const cleanup = () => {
@@ -598,14 +609,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       };
       const listener = (newValue: ServerState) => {
         const outcome = decide(newValue);
-        if (outcome === 'keep-waiting') return;
+        if (outcome === "keep-waiting") return;
         cleanup();
-        if (outcome === 'resolve') resolve(newValue);
+        if (outcome === "resolve") resolve(newValue);
         else reject(new Error(`${label}: rejected on state '${newValue}'`));
       };
       const timer = setTimeout(() => {
         cleanup();
-        reject(new Error(`${label}: timed out after ${timeoutMs}ms (last state '${this.state}')`));
+        reject(
+          new Error(
+            `${label}: timed out after ${timeoutMs}ms (last state '${this.state}')`,
+          ),
+        );
       }, timeoutMs);
       this.on(ServerEvents.change, listener);
     });
@@ -664,7 +679,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       ) {
         error(
           "received a job in progress that should not survive agent restart, so it must have failed before. explicitly failing now",
-          job
+          job,
         );
         const fail = job.Fail("alreadyInProgress", "AXXX");
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -680,12 +695,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           .map((c: string) => c.trim() as ServerState);
         debug(
           "allowed conditions for current job are: " +
-            allowedConditions.join(", ")
+            allowedConditions.join(", "),
         );
         if (!allowedConditions.includes((c: ServerState) => this._state)) {
           error(
             "job will fail because it has a state condition that is not met by the current server state: " +
-              this._state
+              this._state,
           );
           const fail = job.Fail("wrongState", "AXXX");
           jobUpdate(job.jobId, fail, this._thingName, this._connection);
@@ -823,12 +838,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.01, "registered"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       credentials = await SessionCredentials.createCredentials(
         this._serverPath,
         this._thingName,
-        "iot-config-role"
+        "iot-config-role",
       );
       if (!credentials) {
         error("could not get credentials for upload logs");
@@ -836,7 +851,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Fail("noCredentials", "AXXX"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         throw new Error("could not get credentials for upload logs");
       }
@@ -844,7 +859,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.1, "credentials"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const fileName = `mac-control-journal-${new Date().toISOString()}.txt`;
       const path = `/home/pi/${fileName}`;
@@ -854,13 +869,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         journalCmd,
         { timeout: 10000 },
         () => {},
-        () => {}
+        () => {},
       );
       jobUpdate(
         job.jobId,
         job.Progress(0.6, "filesWritten"),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
@@ -872,7 +887,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.8, "filesUploaded"),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       const presignCommand = `${awsPath} s3 presign ${s3Uri}`;
@@ -883,20 +898,20 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         (stdOut) => {
           presignUrl = stdOut;
         },
-        () => {}
+        () => {},
       );
       await awaitableExec(
         `rm ${path}`,
         { timeout: 10000 },
         () => {},
-        () => {}
+        () => {},
       );
       log("presign url from exec:" + presignUrl);
       jobUpdate(
         job.jobId,
         job.Succeed("CUSTOM#" + presignUrl),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("upload logs failed", { err });
@@ -904,7 +919,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("failed", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     }
   }
@@ -921,19 +936,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "started"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const response = await axios.post(
         this._url + "devices/test/" + job.jobDocument.parameters["device"],
         null,
-        { timeout: 120 * 1000 }
+        { timeout: 120 * 1000 },
       );
       if (response.status === 200) {
         jobUpdate(
           job.jobId,
           job.Succeed("deviceTestedSuccessfully"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -941,7 +956,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("deviceTestFailed", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -965,7 +980,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Fail("optionNotSet", "AXXXX"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -978,7 +993,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "sentRequest"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const response = await axios.post(
         this._url +
@@ -987,7 +1002,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           "/" +
           deactivationType,
         null,
-        { timeout: 30 * 1000 }
+        { timeout: 30 * 1000 },
       );
       if (response.status === 200) {
         jobUpdate(
@@ -995,10 +1010,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.Succeed(
             deactivationType === "Disabled"
               ? " deactivedPermanently"
-              : "deactivedTemporarily"
+              : "deactivedTemporarily",
           ),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -1006,7 +1021,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("notPossible", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1029,19 +1044,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "started"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const response = await axios.post(
         this._url + "robot/trash/" + job.jobDocument.parameters["device"],
         null,
-        { timeout: 30 * 1000 }
+        { timeout: 30 * 1000 },
       );
       if (response.status === 200) {
         jobUpdate(
           job.jobId,
           job.Succeed("finished"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -1049,7 +1064,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("notPossible", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1071,19 +1086,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "started"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const response = await axios.post(
         this._url + "devices/restart/" + job.jobDocument.parameters["device"],
         null,
-        { timeout: 15 * 60 * 1000 }
+        { timeout: 15 * 60 * 1000 },
       );
       if (response.status === 200) {
         jobUpdate(
           job.jobId,
           job.Succeed("restarted"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -1091,7 +1106,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("notPossible", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1114,19 +1129,19 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "sentCommand"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const response = await axios.post(
         this._url + "robot/command/" + job.jobDocument.parameters["command"],
         null,
-        { timeout: 30 * 1000 }
+        { timeout: 30 * 1000 },
       );
       if (response.status === 200) {
         jobUpdate(
           job.jobId,
           job.Succeed("commandFailed"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -1134,7 +1149,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("notPossible", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1151,13 +1166,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.3, "connecting"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       jobUpdate(
         job.jobId,
         job.Progress(0.6, "removingKeys"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const client = createRedisClient();
       try {
@@ -1170,13 +1185,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.9, "keysRemoved"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       jobUpdate(
         job.jobId,
         job.Succeed("success"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1199,10 +1214,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail(
           `server is in state ${this._state}! we will not execute a robot test during operation`,
-          "AXXXX"
+          "AXXXX",
         ),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -1211,7 +1226,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(0.01, "registered"),
       this._thingName,
-      this._connection
+      this._connection,
     );
 
     if (this._state === ServerState.NeverInitialized) {
@@ -1223,7 +1238,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(0.02, "stopped containers"),
       this._thingName,
-      this._connection
+      this._connection,
     );
 
     let include: string[] | undefined = job.jobDocument.includeForTest
@@ -1240,7 +1255,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("unable to prepare robot test", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -1251,7 +1266,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(0.03, "stopped containers"),
       this._thingName,
-      this._connection
+      this._connection,
     );
     let currentProgress = 0.03;
     const tick = (move: Rm) => {
@@ -1262,7 +1277,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(currentProgress, move.toString()),
         this._thingName,
-        this._connection
+        this._connection,
       );
     };
 
@@ -1278,13 +1293,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           .filter((rm: Rm) => rm.IsCounted)
           .reduce((rm: Rm, cv: number) => cv + rm.Retries, 0);
       const failed = allMoves.filter(
-        (rm: Rm) => !rm.IsSuccess && rm.IsCounted
+        (rm: Rm) => !rm.IsSuccess && rm.IsCounted,
       ).length;
       const timedOut = allMoves.filter(
-        (rm: Rm) => !rm.Response && rm.IsCounted
+        (rm: Rm) => !rm.Response && rm.IsCounted,
       ).length;
       const success = allMoves.filter(
-        (rm: Rm) => rm.IsSuccess && rm.Retries === 0 && rm.IsCounted
+        (rm: Rm) => rm.IsSuccess && rm.Retries === 0 && rm.IsCounted,
       ).length;
 
       info("*** GESAMTZAHL:    " + totalMoves);
@@ -1296,10 +1311,10 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(
           currentProgress,
-          `*** SEQUENZ ABGESCHLOSSEN\ntotal: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}\nUm freizuräumen Notstopp innerhalb der nächsten 90 Sekunden drücken`
+          `*** SEQUENZ ABGESCHLOSSEN\ntotal: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}\nUm freizuräumen Notstopp innerhalb der nächsten 90 Sekunden drücken`,
         ),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       console.log();
@@ -1312,7 +1327,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("job was cancelled", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       return;
@@ -1327,7 +1342,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     const failed = allMoves.filter((rm: Rm) => !rm.IsSuccess).length;
     const timedOut = allMoves.filter((rm: Rm) => !rm.Response).length;
     const success = allMoves.filter(
-      (rm: Rm) => rm.IsSuccess && rm.Retries === 0
+      (rm: Rm) => rm.IsSuccess && rm.Retries === 0,
     ).length;
 
     info("*** GESAMTZAHL:    " + totalMoves);
@@ -1339,18 +1354,18 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(
         currentProgress,
-        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`
+        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`,
       ),
       this._thingName,
-      this._connection
+      this._connection,
     );
     jobUpdate(
       job.jobId,
       job.Succeed(
-        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`
+        `total: ${totalMoves}, success: ${success}, failed: ${failed}, timedout: ${timedOut}`,
       ),
       this._thingName,
-      this._connection
+      this._connection,
     );
   }
 
@@ -1368,12 +1383,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.3, "sentRequest"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         await axios.put(
           this._url + "setState/" + job.jobDocument.parameters["newstate"],
           undefined,
-          { timeout: 10 * 1000 }
+          { timeout: 10 * 1000 },
         );
       } catch (err) {
         error("could not set server-state", err);
@@ -1383,7 +1398,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("stateChanged"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1408,7 +1423,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             "notifications/message/" +
             job.jobDocument.parameters["message"],
           undefined,
-          { timeout: 10 * 1000 }
+          { timeout: 10 * 1000 },
         );
       } catch (err) {
         error("could not send message", err);
@@ -1418,7 +1433,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("sentMessage"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1435,7 +1450,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(0.25, "registered"),
       this._thingName,
-      this._connection
+      this._connection,
     );
 
     const previousState = this._state;
@@ -1463,7 +1478,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("reloaded config, will take effect after next startup"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -1494,7 +1509,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Succeed("reloaded config and restarted application"),
       this._thingName,
-      this._connection
+      this._connection,
     );
   }
 
@@ -1514,7 +1529,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         {
           headers: { "Content-Type": "application/json" },
           timeout: 15 * 1000,
-        }
+        },
       );
       log("pricelist refreshed", response.data);
       return true;
@@ -1537,7 +1552,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       error("there was no env data in job provided", job);
       const fail = job.Fail(
         "error reading .env data, job should have a parameters.env property",
-        "AXXXX"
+        "AXXXX",
       );
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
@@ -1558,7 +1573,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Succeed("success"),
           this._thingName,
-          this._connection
+          this._connection,
         );
       });
     } catch (err) {
@@ -1580,7 +1595,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed(JSON.stringify({ data })),
         this._thingName,
-        this._connection
+        this._connection,
       );
     });
   }
@@ -1610,7 +1625,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     await axios.post(
       this._url + "init/shutdown/" + Math.floor(inSeconds),
       undefined,
-      { timeout: 10 * 1000 }
+      { timeout: 10 * 1000 },
     );
     log("scheduled server shutdown in " + inSeconds + " seconds");
     // Wait up to (inSeconds + 2 minutes) for the server to actually reach
@@ -1623,9 +1638,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     // (Cast: TS keeps the early-return narrowing above across the await.)
     if ((this.state as ServerState) !== ServerState.closed) {
       await this.waitForStateChange(
-        (s) => (s === ServerState.closed ? 'resolve' : 'keep-waiting'),
+        (s) => (s === ServerState.closed ? "resolve" : "keep-waiting"),
         (inSeconds + 120) * 1000,
-        'shutdownGracefully'
+        "shutdownGracefully",
       );
     }
     return "server is shut down";
@@ -1649,6 +1664,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   private _containers = [
     "redis",
     "config-provider",
+    "adyen-bridge",
     "status-frontend",
     "display-queue",
     "terminal",
@@ -1668,7 +1684,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         scheduledJobRequest,
         this._thingName,
-        this._connection
+        this._connection,
       );
     }
     if (job.statusDetails?.currentStep === "scheduled") {
@@ -1691,7 +1707,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.01, "registered"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       info("current state of server application", this._state);
 
@@ -1701,7 +1717,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.2, "waitOrdersFinished"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         await this.waitForOrdersToFinish(10);
       }
@@ -1709,7 +1725,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.5, "allOrdersFinished"),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       if (this._state === ServerState.Okay) {
@@ -1727,7 +1743,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.75, "pauseBeforeShutdown"),
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       if (option === JobOption.forced && this.state !== ServerState.closed) {
@@ -1738,12 +1754,12 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Progress(0.85, "deletingOldOrders"),
             this._thingName,
-            this._connection
+            this._connection,
           );
         } catch (err) {
           warn(
             "it was not possible to delete running orders, we will still continue",
-            err
+            err,
           );
         }
       }
@@ -1752,7 +1768,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.9, "shuttingDown"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       await this.shutdownGracefully(20);
       await this.stop();
@@ -1760,7 +1776,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("success"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("error shutting down application", err);
@@ -1768,7 +1784,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("failed", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     }
   }
@@ -1779,14 +1795,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.5, "connecting"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.9, "removingKeys"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       try {
         await client.del("orders");
@@ -1797,7 +1813,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("ordersRemoved"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -1825,7 +1841,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Fail("failed", "AXXXX"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -1834,7 +1850,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Succeed("success"),
       this._thingName,
-      this._connection
+      this._connection,
     );
   }
 
@@ -1846,7 +1862,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.05, "registered"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       if (
         (this.isOperatingNormally || this.isStarting) &&
@@ -1856,7 +1872,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           "server is in state " +
             this._state +
             " and blocking orders: " +
-            this._isBlockingOrders
+            this._isBlockingOrders,
         );
         log("job will succeed because server is already in the correct state");
         if (
@@ -1875,14 +1891,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.2, "waitOrdersFinished"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         await this.waitForOrdersToFinish(10);
         jobUpdate(
           job.jobId,
           job.Progress(0.3, "allOrdersFinished"),
           this._thingName,
-          this._connection
+          this._connection,
         );
       }
       if (option !== JobOption.soft) {
@@ -1891,7 +1907,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.4, "serverShutdown"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         log("waiting 20 seconds");
         await this.sleep(20 * 1000);
@@ -1908,7 +1924,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.6, "initStarted"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         await this.initBoxNow();
       } catch (err) {
@@ -1916,7 +1932,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Fail("failed", "AXXXX"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         error("error when initializing box", err);
         reject(err);
@@ -1941,11 +1957,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Fail("incorrectState", "AXXXX"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           reject(
             "application is not in a state where pause is allowed, current state: " +
-              this.state
+              this.state,
           );
           return;
         }
@@ -1957,7 +1973,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Succeed("success"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           resolve(true);
           return;
@@ -1982,27 +1998,37 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         // to finish first.
         const pausedWatcher = this.waitForStateChange(
           (newValue) => {
-            if (newValue === ServerState.Paused) return 'resolve';
-            if (newValue !== ServerState.Pausing) return 'reject';
-            return 'keep-waiting';
+            if (newValue === ServerState.Paused) return "resolve";
+            if (newValue !== ServerState.Pausing) return "reject";
+            return "keep-waiting";
           },
           10 * 60 * 1000,
-          'pauseHandler'
+          "pauseHandler",
         );
         pausedWatcher.then(
           () => {
             settleOnce(() => {
-              jobUpdate(job.jobId, job.Succeed("success"), this._thingName, this._connection);
+              jobUpdate(
+                job.jobId,
+                job.Succeed("success"),
+                this._thingName,
+                this._connection,
+              );
               resolve(true);
             });
           },
           (err) => {
             settleOnce(() => {
               warn("pause was requested, but server transitioned away", err);
-              jobUpdate(job.jobId, job.Fail("wrongStateResult", "AXXXX"), this._thingName, this._connection);
+              jobUpdate(
+                job.jobId,
+                job.Fail("wrongStateResult", "AXXXX"),
+                this._thingName,
+                this._connection,
+              );
               reject(err);
             });
-          }
+          },
         );
 
         if (this.state === ServerState.Okay) {
@@ -2012,14 +2038,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
                 job.jobId,
                 job.Progress(0.5, "waitOrdersFinished"),
                 this._thingName,
-                this._connection
+                this._connection,
               );
               await this.waitForOrdersToFinish(5);
               jobUpdate(
                 job.jobId,
                 job.Progress(0.5, "allOrdersFinished"),
                 this._thingName,
-                this._connection
+                this._connection,
               );
             }
             await axios.post(this._url + "devices/pause", null, {
@@ -2032,7 +2058,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
                 job.jobId,
                 job.Fail("failed", "AXXXX"),
                 this._thingName,
-                this._connection
+                this._connection,
               );
               reject(err);
             });
@@ -2047,7 +2073,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Fail("incorrectState", "AXXXX"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           reject("unpause was requested, but server is in state " + this.state);
           return;
@@ -2066,7 +2092,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Fail("failed", "AXXXX"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           reject();
           return;
@@ -2089,7 +2115,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           log(
             "server is in state " +
               this.state +
-              " -> update can be executed now"
+              " -> update can be executed now",
           );
           if (job.jobDocument.option === JobOption.hard) {
             jobUpdate(job.jobId, progress, this._thingName, this._connection);
@@ -2103,13 +2129,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           log(
             "server is in state " +
               this.state +
-              " -> waiting for the server to be in an updateable state"
+              " -> waiting for the server to be in an updateable state",
           );
           this.once(ServerEvents.readyForUpdate, async () => {
             log(
               "server is now in state " +
                 this.state +
-                " -> update can be executed now"
+                " -> update can be executed now",
             );
             await this.executeUpdate(job);
             resolve(job);
@@ -2142,7 +2168,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         scheduledJobRequest,
         this._thingName,
-        this._connection
+        this._connection,
       );
 
       try {
@@ -2156,7 +2182,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         error("error while executing shell command", err);
         const fail = job.Fail(
           "error while executing shell command: " + err,
-          "AXXXX"
+          "AXXXX",
         );
         jobUpdate(job.jobId, fail, this._thingName, this._connection);
       }
@@ -2171,7 +2197,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const fail = job.Fail(
         "application is not in a state where blocking/unblocking orders is allowed, current state: " +
           this.state,
-        "AXXXX"
+        "AXXXX",
       );
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
@@ -2181,7 +2207,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Progress(0.1, "registered"),
       this._thingName,
-      this._connection
+      this._connection,
     );
     if (block) {
       log("got request to block upcoming orders", job);
@@ -2189,7 +2215,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.2, "registered"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       if (
         this.state === ServerState.Okay ||
@@ -2200,14 +2226,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             job.Progress(0.2, "ordersBlocked"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           await this.waitForOrdersToFinish(10);
           jobUpdate(
             job.jobId,
             job.Succeed("allOrdersFinished"),
             this._thingName,
-            this._connection
+            this._connection,
           );
           return;
         }
@@ -2225,7 +2251,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("ordersUnblocked"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -2301,7 +2327,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       }
 
       const rebootTime: Date = new Date(
-        job.jobDocument.parameters["rebootTime"]
+        job.jobDocument.parameters["rebootTime"],
       );
       const result = await axios.post(this._url + "init/startup", {
         rebootTime: rebootTime.toISOString(),
@@ -2312,7 +2338,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Succeed("startSet"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -2321,7 +2347,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Fail("failed", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -2340,7 +2366,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("startRemoved"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -2348,7 +2374,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       job.jobId,
       job.Fail("failed", "AXXXX"),
       this._thingName,
-      this._connection
+      this._connection,
     );
   }
 
@@ -2357,14 +2383,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       log(
         "server is now in state " +
           this.state +
-          " -> reboot can be executed now"
+          " -> reboot can be executed now",
       );
       if (this.state !== ServerState.closed) await this.shutdownGracefully(10);
       jobUpdate(
         job.jobId,
         job.Progress(0.4, "scheduled"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       await awaitableExec("sudo shutdown -r 1", { cwd: this._serverPath });
       await sleep(55000);
@@ -2372,7 +2398,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.4, "rebooting"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     };
 
@@ -2382,7 +2408,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.25, "waitUntilPossible"),
           this._thingName,
-          this._connection
+          this._connection,
         );
       }
       this.once(ServerEvents.readyForUpdate, async () => {
@@ -2399,7 +2425,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.01, "registered"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         if (job.jobDocument.option !== JobOption.soft) {
           if (job.jobDocument.option === JobOption.hard) {
@@ -2407,14 +2433,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
               job.jobId,
               job.Progress(0.1, "waitForOrders"),
               this._thingName,
-              this._connection
+              this._connection,
             );
             await this.waitForOrdersToFinish(10);
             jobUpdate(
               job.jobId,
               job.Progress(0.2, "allOrdersFinished"),
               this._thingName,
-              this._connection
+              this._connection,
             );
           }
           scheduleReboot();
@@ -2432,21 +2458,21 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.7, "rebootSuccessful"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       await this.startContainers(this._containers);
       jobUpdate(
         job.jobId,
         job.Succeed("success"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } else {
       jobUpdate(
         job.jobId,
         job.Fail("failed", "AXXXX"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     }
   }
@@ -2472,14 +2498,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Progress(0.2, "connecting"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       const client = createRedisClient();
       jobUpdate(
         job.jobId,
         job.Progress(0.4, "removingKeys"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       try {
         await client.del("isMoving");
@@ -2488,11 +2514,11 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Progress(0.8, "settingCleanShutdown"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         await client.set(
           "shutdown",
-          '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}'
+          '{"At": null,"WasClean": true,"IsShutdownForRestart": false,"RecoverFromError": false,"OpenOrders": [],"DevicesWithOrders": []}',
         );
       } finally {
         client.disconnect();
@@ -2501,7 +2527,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("success"),
         this._thingName,
-        this._connection
+        this._connection,
       );
     } catch (err) {
       error("job failed", { job, err });
@@ -2522,7 +2548,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           job.Succeed("success"),
           this._thingName,
-          this._connection
+          this._connection,
         );
         return;
       }
@@ -2539,7 +2565,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         job.jobId,
         job.Succeed("success"),
         this._thingName,
-        this._connection
+        this._connection,
       );
       return;
     }
@@ -2559,14 +2585,14 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           const updateResponse = await axios.put(
             this._url + "setState/Updating",
             {},
-            { timeout: 20 * 1000 }
+            { timeout: 20 * 1000 },
           );
           log("updating request returned", updateResponse.status);
         }
       } catch (err) {
         warn(
           "error while trying to send update notification to main server",
-          err
+          err,
         );
       }
       if (job) {
@@ -2575,7 +2601,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           job.jobId,
           progressRequest,
           this._thingName,
-          this._connection
+          this._connection,
         );
       }
 
@@ -2590,7 +2616,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         credentials = await SessionCredentials.createCredentials(
           this._serverPath,
           this._thingName,
-          "iot-update-role"
+          "iot-update-role",
         );
         if (!credentials)
           throw new Error("error getting credentials, job will fail");
@@ -2612,7 +2638,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             progressRequest,
             this._thingName,
-            this._connection
+            this._connection,
           );
         }
 
@@ -2622,7 +2648,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             progressRequest,
             this._thingName,
-            this._connection
+            this._connection,
           );
         }
 
@@ -2653,7 +2679,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             progressRequest,
             this._thingName,
-            this._connection
+            this._connection,
           );
         }
 
@@ -2662,20 +2688,20 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await awaitableExec(
           this.composeCommand +
             this.composeFile +
-            " up -d config-provider redis terminal status-frontend display-queue pricelist",
+            " up -d config-provider redis adyen-bridge terminal status-frontend display-queue pricelist",
           {
             cwd: this._serverPath,
-          }
+          },
         );
         log(
-          "restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files."
+          "restarted all containers, except myappcafeserver. waiting 20 seconds for config-provider to have downloaded all files.",
         );
         await sleep(30 * 1000);
         await awaitableExec(
           this.composeCommand + this.composeFile + " up -d myappcafeserver",
           {
             cwd: this._serverPath,
-          }
+          },
         );
         if (job) {
           let progressRequest = job.Progress(0.8, "restartingApplications");
@@ -2683,7 +2709,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             progressRequest,
             this._thingName,
-            this._connection
+            this._connection,
           );
         }
         progress = 0.9;
@@ -2697,7 +2723,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
             job.jobId,
             progressRequest,
             this._thingName,
-            this._connection
+            this._connection,
           );
         }
       } catch (err) {
