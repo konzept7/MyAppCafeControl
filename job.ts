@@ -43,7 +43,12 @@ class StatusDetails {
   progress: number | undefined;
   errorCode: string | undefined;
   currentStep: string | undefined;
+  reason: string | undefined;
 }
+
+// IoT Jobs rejects the whole update for status detail values above 1024 characters or with control characters
+const MAX_STATUS_DETAIL_LENGTH = 1024;
+const toStatusDetail = (text: string) => text.replace(/\p{C}+/gu, ' ').slice(0, MAX_STATUS_DETAIL_LENGTH);
 // the incoming job payload
 class Job {
   status!: string;
@@ -72,12 +77,13 @@ class Job {
     if (message) this.statusDetails.currentStep = message;
     return new JobRequest(this)
   }
-  public Fail(reason: string, errorCode: string): JobRequest {
-    info('failing job with id ' + this.jobId, reason)
+  public Fail(reason: string, errorCode: string, details?: string): JobRequest {
+    info('failing job with id ' + this.jobId, details ? { reason, details } : reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
     this.statusDetails.currentStep = reason;
     this.statusDetails.errorCode = errorCode;
+    if (details) this.statusDetails.reason = toStatusDetail(details);
     return new JobRequest(this)
   }
 

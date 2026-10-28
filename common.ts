@@ -80,4 +80,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   }) as Promise<T>;
 }
 
-export { awaitableExec, sleep, withTimeout, TimeoutError }
+// axios errors carry the answer of the server, which names the cause, while their message only names the status
+function describeHttpError(err: any): string {
+  if (!err?.response) return err?.message ?? String(err);
+  const { status, data } = err.response;
+  return `${status} ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+}
+
+export { awaitableExec, sleep, withTimeout, TimeoutError, describeHttpError }
