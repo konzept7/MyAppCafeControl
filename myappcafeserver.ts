@@ -27,7 +27,7 @@ import { ControllableProgram } from "./controllableProgram";
 import EventEmitter from "events";
 import axios from "axios";
 import { mqtt } from "aws-iot-device-sdk-v2";
-import { awaitableExec, sleep, withTimeout } from "./common";
+import { awaitableExec, describeHttpError, sleep, withTimeout } from "./common";
 import { Job, jobUpdate, StatusDetails, JobOption } from "./job";
 import { ServerShadow, ServerShadowState, IShadowState } from "./shadow";
 import { SessionCredentials } from "./sessionCredentials";
@@ -1443,10 +1443,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     const reloadUrl = `http://localhost:${process.env.VUE_APP_PLU_PORT}/reloadConfig`;
     log("triggering config reload", reloadUrl);
     try {
-      await axios.post(reloadUrl);
-    } catch (error) {
-      warn("error reloading config", error);
-      const fail = job.Fail("notPossible", "AXXXX");
+      const response = await axios.post(reloadUrl);
+      // older config-provider images answer a failed reload with `false` and status 200
+      if (response.data === false) throw new Error("the config provider rejected the reload");
+    } catch (err) {
+      const reason = describeHttpError(err);
+      warn("error reloading config", reason);
+      const fail = job.Fail("notPossible", "AXXXX", reason);
       jobUpdate(job.jobId, fail, this._thingName, this._connection);
       return;
     }
