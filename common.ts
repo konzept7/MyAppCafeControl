@@ -12,10 +12,14 @@ async function awaitableExec(
   onErr: (e: string) => void = () => { }
 ): Promise<number> {
   return new Promise((resolve, reject) => {
-    // Settle only in the exec callback. 'exit' can fire before the output
-    // streams are drained, so onOut would not have run yet, and its exit code
-    // alone loses stderr and the signal. exec also routes spawn errors here.
-    const child = exec(command, options, (err, stdOut, stdErr) => {
+    let settled = false;
+    let drainTimer: NodeJS.Timeout | undefined;
+    let stdOutSoFar = '';
+    let stdErrSoFar = '';
+    const settle = (err: Error | null, stdOut: string, stdErr: string) => {
+      if (settled) return;
+      settled = true;
+      if (drainTimer) clearTimeout(drainTimer);
       log(stdOut)
       onOut(stdOut)
       if (stdErr) {
@@ -29,10 +33,25 @@ async function awaitableExec(
       }
       log('child process exited with code 0')
       resolve(0)
-    })
+    }
 
-    child.on('message', (message) => {
-      log('message from exec: ' + message.toString());
+    // The exec callback has the complete output and the spawn errors, but it
+    // runs only once stdout and stderr are closed. 'exit' can fire before the
+    // streams are drained, so it only starts a grace period: a background
+    // process started by the command ('foo &') keeps the pipes open and would
+    // otherwise hold the caller until that process dies.
+    const child = exec(command, options, (err, stdOut, stdErr) =>
+      settle(err, String(stdOut), String(stdErr))
+    )
+    child.stdout?.on('data', (chunk) => { stdOutSoFar += chunk })
+    child.stderr?.on('data', (chunk) => { stdErrSoFar += chunk })
+    child.on('exit', (code, signal) => {
+      drainTimer = setTimeout(() => {
+        const err = code === 0
+          ? null
+          : new Error(`Command failed (${signal ?? 'exit code ' + code}): ${command}`)
+        settle(err, stdOutSoFar, stdErrSoFar)
+      }, 2000)
     })
   })
 }
@@ -40,6 +59,10 @@ async function awaitableExec(
 function sleep(milliseconds: number) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
+
+// Per-job budget enforced in index.ts. Exported so handlers with long waits
+// can stay inside it and fail the job themselves with a precise reason.
+const JOB_HANDLER_TIMEOUT_MS = 15 * 60 * 1000;
 
 // Error type used by withTimeout so callers can distinguish "the operation
 // timed out" from "the operation itself failed".
@@ -77,4 +100,4 @@ function describeHttpError(err: any): string {
   return `${status} ${typeof data === 'string' ? data : JSON.stringify(data)}`;
 }
 
-export { awaitableExec, sleep, withTimeout, TimeoutError, describeHttpError }
+export { awaitableExec, sleep, withTimeout, TimeoutError, describeHttpError, JOB_HANDLER_TIMEOUT_MS }
