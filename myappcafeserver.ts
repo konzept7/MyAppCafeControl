@@ -699,42 +699,56 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     });
   }
 
-  async initBoxNow(): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      log("got request to start box, current state: " + this.state);
-      try {
-        if (this.state === ServerState.FatalError) {
-          log("server is in fatal error, shutting down");
-          await this.shutdownGracefully(10);
-          await sleep(10 * 1000);
-        }
-        if (this.state === ServerState.closed) {
-          log("server is currently shut down, starting containers");
-          await this.start();
-          log("started server, now waiting 30 seconds");
-          await sleep(30 * 1000);
-        }
-        log("waited for server to be up, now sending init commands");
-        await axios.post(this._url + "init/sanitize");
-        log("sanitized the shutdown, just in case");
-        log("waiting 5 seconds until init command");
-        this.once(ServerEvents.okay, () => {
-          log("server seems to be okay after init");
-          resolve(true);
-        });
-        this.once(ServerEvents.fatalError, () => {
-          warn("server is error after sending init command");
-          reject("server is in fatal error state");
-        });
-        await this.sleep(5000);
-        log("5 seconds over, now sending init command");
-        await axios.post(this._url + "init/initnow");
-        log("init commands sent, waiting for server to be in state okay");
-      } catch (err) {
-        error("error starting box", err);
-        reject(err);
+  async initBoxNow(): Promise<void> {
+    log("got request to start box, current state: " + this.state);
+    if (this.state === ServerState.FatalError) {
+      log("server is in fatal error, shutting down");
+      await this.shutdownGracefully(10);
+      await sleep(10 * 1000);
+    }
+    if (this.state === ServerState.closed) {
+      log("server is currently shut down, starting containers");
+      await this.start();
+      log("started server, now waiting 30 seconds");
+      await sleep(30 * 1000);
+    }
+    log("waited for server to be up, now sending init commands");
+    await axios.post(this._url + "init/sanitize");
+    log("sanitized the shutdown, just in case");
+    log("waiting 5 seconds until init command");
+    await this.sleep(5000);
+
+    // Listen before sending: the state can reach Okay while the request is
+    // still open. Bounded below the 15 min per-job timeout in index.ts.
+    const initFinished = this.waitForStateChange(
+      (state) =>
+        state === ServerState.Okay
+          ? "resolve"
+          : state === ServerState.FatalError
+          ? "reject"
+          : "keep-waiting",
+      10 * 60 * 1000,
+      "waiting for the server to finish init"
+    );
+    try {
+      log("5 seconds over, now sending init command");
+      await axios.post(this._url + "init/initnow");
+      log("init command accepted, waiting for server to be in state okay");
+    } catch (err) {
+      // The server answers initnow only when the init has finished, which can
+      // take several minutes, and it keeps initializing after the request
+      // timed out. Only the state tells whether the init worked.
+      if ((err as { code?: string })?.code !== "ECONNABORTED") {
+        initFinished.catch(() => {});
+        throw err;
       }
-    });
+      warn(
+        "init command did not answer in time, waiting for the server state instead",
+        err
+      );
+    }
+    await initFinished;
+    log("server is okay after init");
   }
 
   private stepOperations: Array<string> = ["reboot"];
@@ -1932,13 +1946,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   async initHandler(job: Job) {
     const option = job.jobDocument.option || JobOption.soft;
     log("got job to init box, starting now");
-    return new Promise(async (resolve, reject) => {
-      jobUpdate(
-        job.jobId,
-        job.Progress(0.05, "registered"),
-        this._thingName,
-        this._connection
-      );
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.05, "registered"),
+      this._thingName,
+      this._connection
+    );
+    try {
       if (
         (this.isOperatingNormally || this.isStarting) &&
         option === JobOption.soft
@@ -1958,8 +1972,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           await this.toggleBlockOrders(false);
         const success = job.Succeed("alreadyCorrectState");
         jobUpdate(job.jobId, success, this._thingName, this._connection);
-        resolve(true);
-        return;
+        return true;
       }
       if (option === JobOption.hard) {
         jobUpdate(
@@ -1987,32 +2000,32 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         log("waiting 20 seconds");
         await this.sleep(20 * 1000);
       }
-      try {
-        this.once(ServerEvents.okay, () => {
-          const success = job.Succeed("success");
-          jobUpdate(job.jobId, success, this._thingName, this._connection);
-          resolve(true);
-        });
 
-        log("sending start command now");
-        jobUpdate(
-          job.jobId,
-          job.Progress(0.6, "initStarted"),
-          this._thingName,
-          this._connection
-        );
-        await this.initBoxNow();
-      } catch (err) {
-        jobUpdate(
-          job.jobId,
-          job.Fail("failed", "AXXXX"),
-          this._thingName,
-          this._connection
-        );
-        error("error when initializing box", err);
-        reject(err);
-      }
-    });
+      log("sending start command now");
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.6, "initStarted"),
+        this._thingName,
+        this._connection
+      );
+      await this.initBoxNow();
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
+      return true;
+    } catch (err) {
+      error("error when initializing box", err);
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX", describeHttpError(err)),
+        this._thingName,
+        this._connection
+      );
+      throw err;
+    }
   }
 
   async pauseHandler(job: Job): Promise<boolean> {
