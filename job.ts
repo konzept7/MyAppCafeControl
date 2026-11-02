@@ -81,7 +81,8 @@ class Job {
     info('failing job with id ' + this.jobId, details ? { reason, details } : reason)
     this.status = 'FAILED';
     this.statusDetails = new StatusDetails();
-    this.statusDetails.currentStep = reason;
+    // some callers build the reason from an error message (stderr, newlines)
+    this.statusDetails.currentStep = toStatusDetail(reason);
     this.statusDetails.errorCode = errorCode;
     if (details) this.statusDetails.reason = toStatusDetail(details);
     return new JobRequest(this)

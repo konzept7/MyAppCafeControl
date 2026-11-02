@@ -12,6 +12,9 @@ async function awaitableExec(
   onErr: (e: string) => void = () => { }
 ): Promise<number> {
   return new Promise((resolve, reject) => {
+    // Settle only in the exec callback. 'exit' can fire before the output
+    // streams are drained, so onOut would not have run yet, and its exit code
+    // alone loses stderr and the signal. exec also routes spawn errors here.
     const child = exec(command, options, (err, stdOut, stdErr) => {
       log(stdOut)
       onOut(stdOut)
@@ -21,28 +24,15 @@ async function awaitableExec(
       }
       if (err) {
         error('error executing child process', err)
-        reject(error)
-        return;
-      }
-    })
-    child.on('error', (err) => {
-      if (err) {
-        error('error executing child process', error)
-        reject(error)
+        reject(err)
         return
       }
+      log('child process exited with code 0')
+      resolve(0)
     })
 
     child.on('message', (message) => {
       log('message from exec: ' + message.toString());
-    })
-    child.on('exit', (code) => {
-      if (code !== 0) {
-        error('child process exited with code', code)
-        reject(code)
-      }
-      log('child process exited with code ' + code)
-      resolve(code || 0);
     })
   })
 }
