@@ -41,8 +41,12 @@ import { existsSync, readFile, writeFile } from "fs";
 import { stat, unlink } from "fs/promises";
 import { uptime } from "os";
 import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
 
 var docker = new Dockerode();
+const execAsync = promisify(exec);
+const ECR_REGISTRY = "311842024294.dkr.ecr.eu-central-1.amazonaws.com";
 
 const signalR = require("@microsoft/signalr");
 const Redis = require("ioredis");
@@ -430,12 +434,96 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   async startContainers(images: Array<string>) {
     log("starting containers as requested", images);
+    await this.loginIfImagesMissing(images);
     return awaitableExec(
       this.composeCommand + this.composeFile + " up -d " + images.join(" "),
       {
         cwd: this._serverPath,
       }
     );
+  }
+
+  // 'compose up' pulls every image that is not on the box, and that pull fails
+  // once the ECR login stored by the last update has expired. Without a login
+  // here, one service whose image was never pulled (a service added to the
+  // compose files after the last update) makes every 'compose up' fail and
+  // leaves the whole stack stopped.
+  private async loginIfImagesMissing(services: Array<string>): Promise<void> {
+    // mirrors executeUpdate, which does not log in on x86 either
+    if (process.env.PLATFORM === "x86") return;
+
+    let missing: Array<string>;
+    try {
+      missing = await withTimeout(
+        this.missingRegistryImages(services),
+        60 * 1000,
+        "check for missing images"
+      );
+    } catch (err) {
+      warn("could not check for missing images, logging in to ECR anyway", err);
+      missing = ["unknown"];
+    }
+    if (missing.length === 0) return;
+
+    log("images missing locally, logging in to ECR before compose up", missing);
+    try {
+      await this.ecrLogin();
+    } catch (err) {
+      // compose up still runs and reports the pull error itself
+      warn("ECR login failed", err);
+    }
+  }
+
+  private async missingRegistryImages(
+    services: Array<string>
+  ): Promise<Array<string>> {
+    // not awaitableExec: it logs stdout, and the resolved config contains the
+    // interpolated .env values
+    const { stdout } = await execAsync(
+      this.composeCommand + this.composeFile + " config --format json",
+      {
+        cwd: this._serverPath,
+        timeout: 30 * 1000,
+        maxBuffer: 10 * 1024 * 1024,
+      }
+    );
+    const config = JSON.parse(stdout);
+    const missing: Array<string> = [];
+    for (const service of services) {
+      const image: string | undefined = config?.services?.[service]?.image;
+      if (!image || !image.startsWith(ECR_REGISTRY + "/")) continue;
+      try {
+        await docker.getImage(image).inspect();
+      } catch (err) {
+        if ((err as { statusCode?: number })?.statusCode !== 404) throw err;
+        missing.push(image);
+      }
+    }
+    return missing;
+  }
+
+  private async ecrLogin(): Promise<void> {
+    const credentials = await SessionCredentials.createCredentials(
+      this._serverPath,
+      this._thingName,
+      "iot-update-role"
+    );
+    if (!credentials) throw new Error("no credentials for iot-update-role");
+    // credentials go through the environment so they never show up in the
+    // logged command or in ps
+    await awaitableExec(
+      `/home/pi/.local/bin/aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin ${ECR_REGISTRY}`,
+      {
+        env: {
+          ...process.env,
+          ...credentials.createEnv(),
+          AWS_DEFAULT_REGION: "eu-central-1",
+          AWS_REGION: "eu-central-1",
+        },
+        timeout: 60 * 1000,
+      }
+    );
+    log("logged in to ECR");
   }
 
   async start() {
