@@ -27,7 +27,7 @@ import { ControllableProgram } from "./controllableProgram";
 import EventEmitter from "events";
 import axios from "axios";
 import { mqtt } from "aws-iot-device-sdk-v2";
-import { awaitableExec, describeHttpError, sleep, withTimeout } from "./common";
+import { awaitableExec, describeHttpError, sleep, withTimeout, JOB_HANDLER_TIMEOUT_MS } from "./common";
 import { Job, jobUpdate, StatusDetails, JobOption } from "./job";
 import { ServerShadow, ServerShadowState, IShadowState } from "./shadow";
 import { SessionCredentials } from "./sessionCredentials";
@@ -43,6 +43,22 @@ import { uptime } from "os";
 import path from "path";
 
 var docker = new Dockerode();
+const ECR_REGISTRY = "311842024294.dkr.ecr.eu-central-1.amazonaws.com";
+
+// Ends shortly before the per-job timeout in index.ts, so a handler that runs
+// out of time fails the job with its own reason and cleans up its waits.
+function jobDeadline(): number {
+  return Date.now() + JOB_HANDLER_TIMEOUT_MS - 30 * 1000;
+}
+
+function awsEnv(credentials: SessionCredentials): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...credentials.createEnv(),
+    AWS_DEFAULT_REGION: "eu-central-1",
+    AWS_REGION: "eu-central-1",
+  };
+}
 
 const signalR = require("@microsoft/signalr");
 const Redis = require("ioredis");
@@ -430,12 +446,53 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
   async startContainers(images: Array<string>) {
     log("starting containers as requested", images);
-    return awaitableExec(
-      this.composeCommand + this.composeFile + " up -d " + images.join(" "),
+    const up = () =>
+      awaitableExec(
+        this.composeCommand + this.composeFile + " up -d " + images.join(" "),
+        {
+          cwd: this._serverPath,
+        }
+      );
+    // mirrors executeUpdate, which does not log in on x86 either
+    if (process.env.PLATFORM === "x86") return up();
+    try {
+      return await up();
+    } catch (err) {
+      // 'compose up' pulls every image that is not on the box, and that pull
+      // fails once the ECR login stored by the last update has expired (a
+      // service added to the compose files after the last update has no image
+      // yet). Logging in up front would cost an STS and ECR round trip on every
+      // start, and compose v1 cannot list the images a service needs.
+      warn("compose up failed, logging in to ECR and trying again", err);
+    }
+    try {
+      await this.ecrLogin();
+    } catch (err) {
+      // compose up still runs and reports the pull error itself
+      warn("ECR login failed", err);
+    }
+    return up();
+  }
+
+  private async ecrLogin(credentials?: SessionCredentials): Promise<void> {
+    if (!credentials) {
+      credentials = await SessionCredentials.createCredentials(
+        this._serverPath,
+        this._thingName,
+        "iot-update-role"
+      );
+    }
+    if (!credentials) throw new Error("no credentials for iot-update-role");
+    // credentials go through the environment so they never show up in the
+    // logged command, in exec errors or in ps
+    await awaitableExec(
+      `/home/pi/.local/bin/aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin ${ECR_REGISTRY}`,
       {
-        cwd: this._serverPath,
+        env: awsEnv(credentials),
+        timeout: 60 * 1000,
       }
     );
+    log("logged in to ECR");
   }
 
   async start() {
@@ -586,10 +643,13 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   //   'resolve'     - settle the promise with this state
   //   'reject'      - settle the promise with a rejection
   //   'keep-waiting' - ignore this state, keep listening
+  // If abortOn rejects first, the wait ends with that error and removes its
+  // listener, so a failed companion request cannot leave it registered.
   waitForStateChange(
     decide: (newState: ServerState) => 'resolve' | 'reject' | 'keep-waiting',
     timeoutMs: number,
-    label: string
+    label: string,
+    abortOn?: Promise<unknown>
   ): Promise<ServerState> {
     return new Promise<ServerState>((resolve, reject) => {
       const cleanup = () => {
@@ -608,45 +668,70 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         reject(new Error(`${label}: timed out after ${timeoutMs}ms (last state '${this.state}')`));
       }, timeoutMs);
       this.on(ServerEvents.change, listener);
+      abortOn?.catch((err) => {
+        cleanup();
+        reject(err);
+      });
     });
   }
 
-  async initBoxNow(): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      log("got request to start box, current state: " + this.state);
-      try {
-        if (this.state === ServerState.FatalError) {
-          log("server is in fatal error, shutting down");
-          await this.shutdownGracefully(10);
-          await sleep(10 * 1000);
+  // deadline: epoch ms by which the calling job must be done. Hard init and
+  // reload-config spend up to 10 min waiting for orders first, so the init wait
+  // has to fit into what is left of the per-job timeout in index.ts.
+  async initBoxNow(deadline: number): Promise<void> {
+    log("got request to start box, current state: " + this.state);
+    if (this.state === ServerState.FatalError) {
+      log("server is in fatal error, shutting down");
+      await this.shutdownGracefully(10);
+      await sleep(10 * 1000);
+    }
+    if (this.state === ServerState.closed) {
+      log("server is currently shut down, starting containers");
+      await this.start();
+      log("started server, now waiting 30 seconds");
+      await sleep(30 * 1000);
+    }
+    log("waited for server to be up, now sending init commands");
+    await axios.post(this._url + "init/sanitize");
+    log("sanitized the shutdown, just in case");
+    log("waiting 5 seconds until init command");
+    await this.sleep(5000);
+
+    const waitMs = Math.min(10 * 60 * 1000, deadline - Date.now());
+    // axios treats a timeout of 0 as no timeout
+    if (waitMs <= 0) throw new Error("no time left in the job to wait for init");
+
+    log("5 seconds over, now sending init command");
+    // The server answers initnow only when the init has finished, and it keeps
+    // initializing when the connection drops, so only an answer with an error
+    // status fails the init. The request timeout matches the state wait so
+    // the client never gives up on a running init first.
+    const request = axios
+      .post(this._url + "init/initnow", undefined, { timeout: waitMs })
+      .then(
+        () => log("server answered the init command"),
+        (err) => {
+          if (err?.response) throw err;
+          warn(
+            "init command got no answer, waiting for the server state instead",
+            err
+          );
         }
-        if (this.state === ServerState.closed) {
-          log("server is currently shut down, starting containers");
-          await this.start();
-          log("started server, now waiting 30 seconds");
-          await sleep(30 * 1000);
-        }
-        log("waited for server to be up, now sending init commands");
-        await axios.post(this._url + "init/sanitize");
-        log("sanitized the shutdown, just in case");
-        log("waiting 5 seconds until init command");
-        this.once(ServerEvents.okay, () => {
-          log("server seems to be okay after init");
-          resolve(true);
-        });
-        this.once(ServerEvents.fatalError, () => {
-          warn("server is error after sending init command");
-          reject("server is in fatal error state");
-        });
-        await this.sleep(5000);
-        log("5 seconds over, now sending init command");
-        await axios.post(this._url + "init/initnow");
-        log("init commands sent, waiting for server to be in state okay");
-      } catch (err) {
-        error("error starting box", err);
-        reject(err);
-      }
-    });
+      );
+    // registered in the same synchronous run as the request, so no state
+    // change can be missed
+    await this.waitForStateChange(
+      (state) =>
+        state === ServerState.Okay
+          ? "resolve"
+          : state === ServerState.FatalError
+          ? "reject"
+          : "keep-waiting",
+      waitMs,
+      "waiting for the server to finish init",
+      request
+    );
+    log("server is okay after init");
   }
 
   private stepOperations: Array<string> = ["reboot"];
@@ -863,9 +948,9 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         this._connection
       );
 
-      const envCommand = `export AWS_ACCESS_KEY_ID=${credentials.accessKeyId}; export AWS_SECRET_ACCESS_KEY=${credentials.secretAccessKey};export AWS_SESSION_TOKEN=${credentials.sessionToken}; export AWS_DEFAULT_REGION=eu-central-1; export AWS_REGION=eu-central-1`;
-      const uploadCmd = `${awsPath} s3 cp ${path} ${s3Uri}`;
-      await awaitableExec([envCommand, uploadCmd].join(";"), {
+      const env = awsEnv(credentials);
+      await awaitableExec(`${awsPath} s3 cp ${path} ${s3Uri}`, {
+        env,
         timeout: 10000,
       });
       jobUpdate(
@@ -878,8 +963,8 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
       const presignCommand = `${awsPath} s3 presign ${s3Uri}`;
       let presignUrl;
       await awaitableExec(
-        [envCommand, presignCommand].join(";"),
-        { timeout: 10000 },
+        presignCommand,
+        { env, timeout: 10000 },
         (stdOut) => {
           presignUrl = stdOut;
         },
@@ -1430,6 +1515,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async reloadConfigHandler(job: Job) {
+    const deadline = jobDeadline();
     debug("reload config job received", job);
     jobUpdate(
       job.jobId,
@@ -1488,7 +1574,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
     if (previousState === ServerState.Okay) {
       progress = job.Progress(0.8, "initStarted");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
-      await this.initBoxNow();
+      await this.initBoxNow(deadline);
       progress = job.Progress(0.9, "initialized");
       jobUpdate(job.jobId, progress, this._thingName, this._connection);
     }
@@ -1842,15 +1928,16 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
   }
 
   async initHandler(job: Job) {
+    const deadline = jobDeadline();
     const option = job.jobDocument.option || JobOption.soft;
     log("got job to init box, starting now");
-    return new Promise(async (resolve, reject) => {
-      jobUpdate(
-        job.jobId,
-        job.Progress(0.05, "registered"),
-        this._thingName,
-        this._connection
-      );
+    jobUpdate(
+      job.jobId,
+      job.Progress(0.05, "registered"),
+      this._thingName,
+      this._connection
+    );
+    try {
       if (
         (this.isOperatingNormally || this.isStarting) &&
         option === JobOption.soft
@@ -1870,8 +1957,7 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
           await this.toggleBlockOrders(false);
         const success = job.Succeed("alreadyCorrectState");
         jobUpdate(job.jobId, success, this._thingName, this._connection);
-        resolve(true);
-        return;
+        return true;
       }
       if (option === JobOption.hard) {
         jobUpdate(
@@ -1899,32 +1985,32 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         log("waiting 20 seconds");
         await this.sleep(20 * 1000);
       }
-      try {
-        this.once(ServerEvents.okay, () => {
-          const success = job.Succeed("success");
-          jobUpdate(job.jobId, success, this._thingName, this._connection);
-          resolve(true);
-        });
 
-        log("sending start command now");
-        jobUpdate(
-          job.jobId,
-          job.Progress(0.6, "initStarted"),
-          this._thingName,
-          this._connection
-        );
-        await this.initBoxNow();
-      } catch (err) {
-        jobUpdate(
-          job.jobId,
-          job.Fail("failed", "AXXXX"),
-          this._thingName,
-          this._connection
-        );
-        error("error when initializing box", err);
-        reject(err);
-      }
-    });
+      log("sending start command now");
+      jobUpdate(
+        job.jobId,
+        job.Progress(0.6, "initStarted"),
+        this._thingName,
+        this._connection
+      );
+      await this.initBoxNow(deadline);
+      jobUpdate(
+        job.jobId,
+        job.Succeed("success"),
+        this._thingName,
+        this._connection
+      );
+      return true;
+    } catch (err) {
+      error("error when initializing box", err);
+      jobUpdate(
+        job.jobId,
+        job.Fail("failed", "AXXXX", describeHttpError(err)),
+        this._thingName,
+        this._connection
+      );
+      throw err;
+    }
   }
 
   async pauseHandler(job: Job): Promise<boolean> {
@@ -2632,24 +2718,20 @@ class Myappcafeserver extends EventEmitter implements ControllableProgram {
         await sleep(10 * 1000);
 
         log("downloading updates");
-        const command =
-          "PLATFORM" in process.env && process.env.PLATFORM === "x86"
-            ? ""
-            : "export AWS_ACCESS_KEY_ID=" +
-              credentials.accessKeyId +
-              "; export AWS_SECRET_ACCESS_KEY=" +
-              credentials.secretAccessKey +
-              ";export AWS_SESSION_TOKEN=" +
-              credentials.sessionToken +
-              "; " +
-              "/home/pi/.local/bin/aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 311842024294.dkr.ecr.eu-central-1.amazonaws.com; " +
-              this.composeCommand +
-              this.composeFile +
-              " pull";
-        debug("download command", command);
-        await awaitableExec(command, {
-          cwd: this._serverPath,
-        });
+        if (process.env.PLATFORM !== "x86") {
+          try {
+            await this.ecrLogin(credentials);
+          } catch (err) {
+            // the pull below reports the missing login itself
+            warn("ECR login failed", err);
+          }
+          await awaitableExec(
+            this.composeCommand + this.composeFile + " pull",
+            {
+              cwd: this._serverPath,
+            }
+          );
+        }
         if (job) {
           let progressRequest = job.Progress(0.7, "downloadedFinished");
           jobUpdate(
