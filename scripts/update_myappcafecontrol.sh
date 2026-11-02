@@ -52,11 +52,19 @@ chmod +x $workdir/scripts/once.sh
 /home/pi/srv/MyAppCafeControl/scripts/once.sh >> /home/pi/srv/MyAppCafeControl/scripts/once.log
 
 echo "$(date) Checking for changes in remote repository..."
+# cron starts in /home/pi; outside the repository both versions below would be
+# empty and compare as changed.
+# The crontab sources this file with /bin/sh (dash), so keep it POSIX.
+cd $workdir || exit 1
 git fetch origin
 LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse @{u})
+REMOTE=$(git rev-parse origin/master)
 
-if [ $LOCAL != $REMOTE ]; then
+if [ -z "$LOCAL" ] || [ -z "$REMOTE" ]; then
+    echo "$(date) Could not read the local or remote version. Exiting..."
+    exit 1
+fi
+if [ "$LOCAL" != "$REMOTE" ]; then
     echo "$(date) Changes detected in remote repository. Updating..."
 else
     echo "$(date) No changes detected in remote repository. Exiting..."
@@ -67,22 +75,33 @@ echo "$(date) Stopping service..."
 sudo systemctl stop myappcafecontrol.service
 
 # pull current version
-cd $workdir || exit
 echo "$(date) Pulling current version..."
 git checkout .
 git pull origin master
 
-# Check if package.json has changed
-if ! git diff --quiet HEAD package.json; then
+# compare with the version before the pull; the working tree always matches the
+# new HEAD after it
+if ! git diff --quiet "$LOCAL" HEAD -- package.json; then
     echo "$(date) package.json has changed. Installing dependencies..."
-    npm install
+    if ! npm install; then
+        echo "$(date) ERROR: npm install failed, building with the installed dependencies"
+    fi
 else
     echo "$(date) package.json has not changed. Skipping dependency installation..."
 fi
 
 echo "$(date) Building project..."
-npm run build
+build_ok=true
+if ! npm run build; then
+    build_ok=false
+    # tsc --build emits nothing when it reports an error
+    echo "$(date) ERROR: build failed, dist/ still holds the previous build and the service starts with it"
+fi
 
 # restart service after build
 echo "$(date) Starting service..."
 sudo systemctl start myappcafecontrol.service
+
+if [ "$build_ok" = false ]; then
+    exit 1
+fi
