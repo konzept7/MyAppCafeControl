@@ -20,7 +20,7 @@ axios.defaults.timeout = 60 * 1000;
 
 import { baseJobTopic, Job, JOBTOPICS, jobUpdate } from './job'
 import { shadowTopic, ShadowSubtopic, ServerShadowState } from './shadow'
-import { sleep, withTimeout, TimeoutError } from './common'
+import { sleep, withTimeout, TimeoutError, JOB_HANDLER_TIMEOUT_MS } from './common'
 import { ControllableProgram } from './controllableProgram';
 import { Tunnel, tunnelTopic } from './tunnel';
 import { Myappcafeserver, ServerState } from './myappcafeserver'
@@ -135,7 +135,6 @@ const noteMqttActivity = () => { lastMqttActivityAt = Date.now(); };
 // tunnel handler simply stops waiting. 15min is generous enough for the slow
 // operations (waiting for orders to finish, container restarts) and short
 // enough that an operator notices.
-const JOB_HANDLER_TIMEOUT_MS = 15 * 60 * 1000;
 const TUNNEL_HANDLER_TIMEOUT_MS = 2 * 60 * 1000;
 
 // Jobs whose handler is currently running. A re-published $next/get (after a
