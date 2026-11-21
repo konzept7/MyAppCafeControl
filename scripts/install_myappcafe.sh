@@ -258,6 +258,9 @@ if [[ "$installationPackage" == "server" ]] || [[ "$installationPackage" == "gat
         # retries this upgrade if it failed here).
         bash /home/pi/srv/MyAppCafeControl/scripts/upgrade-libseccomp-buster.sh
 
+        echo "Keeping dhcpcd off Docker's interfaces (no-op without dhcpcd)"
+        bash /home/pi/srv/MyAppCafeControl/scripts/dhcpcd-ignore-docker.sh
+
         if [ ! -d "/home/pi/srv/MyAppCafeControl/node_modules" ] ; then
             mkdir /home/pi/srv/MyAppCafeControl/node_modules
         fi
@@ -434,7 +437,9 @@ cat > /home/pi/set-ip.sh << EOF
     sudo mv /etc/dhcpcd.conf /etc/dhcpcd.conf.bak
     sudo touch /etc/dhcpcd.conf
     sudo chmod 777 /etc/dhcpcd.conf
-    
+
+    # global option, must stay above 'interface eth0'; see scripts/dhcpcd-ignore-docker.sh
+    echo "denyinterfaces veth* br-* docker*" >> /etc/dhcpcd.conf
     echo "hostname" >> /etc/dhcpcd.conf
     echo "clientid" >> /etc/dhcpcd.conf
     echo "persistent" >> /etc/dhcpcd.conf
